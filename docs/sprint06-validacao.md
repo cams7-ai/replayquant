@@ -1,5 +1,23 @@
 # Sprint 06 — Registro de validação
 
+## Atualização: relatório HTML
+
+Em **06/11/2026**, a suíte foi executada com `.venv/bin/python -m unittest
+discover -s tests -v` em Python **3.12.14**: **31 testes aprovados**. Os quatro
+testes adicionais cobrem o documento HTML independente, fórmulas e valores
+exatos, roteiro vazio, posição aberta, escape de conteúdo dinâmico, contexto
+decimal externo e integração dos dois subcomandos. Também verificam códigos
+0/1/2, diagnósticos em stderr, recusa de saída existente e preservação dos três
+artefatos JSON. `git diff --check` passou.
+
+O relatório da demonstração foi gerado em `/tmp/replayquant-relatorio.html`.
+A renderização foi inspecionada com Chrome headless em desktop e tela estreita.
+O CSS inclui regras de impressão, sem dependências externas. Exemplos de uso
+e exportação constam no README; `--formato html` escreve somente em stdout.
+
+O registro abaixo descreve a validação original da Sprint 06, anterior à
+inclusão desse formato.
+
 Validação executada em **06/11/2026**, na raiz do ReplayQuant, com **Python
 3.12.14** e ambiente `.venv`. A implementação usa somente a biblioteca padrão.
 Não foram instalados pacotes externos, acessadas exchanges, usadas credenciais ou

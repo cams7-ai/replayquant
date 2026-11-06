@@ -29,6 +29,7 @@
 | Decimal | Representação decimal criada de texto, sem float financeiro intermediário. A precisão é finita e controlada localmente. |
 | Hash SHA-256 | Identificador por conteúdo. Mudar bytes de dados, configuração ou código muda sua identificação. |
 | Manifesto | Registro do conteúdo usado, runtime, políticas e modelo de execução, suficiente para identificar o experimento local. |
+| Relatório HTML | Documento independente obtido com `--formato html`, com indicadores, tabelas e memória de cálculo. Pode ser salvo por redirecionamento de stdout e aberto no navegador para leitura, impressão ou PDF, sem conexão à internet. |
 | `run_id` | Hash de hashes de entrada/código e versão Python. Não depende de hora real, diretório de saída ou commit Git. |
 | `INCOMPLETE` | Marcador de gravação ainda não concluída ou que falhou. Artefatos com esse marcador não devem ser consumidos como persistência bem-sucedida. |
 

@@ -4,6 +4,7 @@ from decimal import Decimal
 import sys
 from .data import load_inputs
 from .engine import replay
+from .html_report import html_report
 from .reporting import json_text, manifest, report, text_report, write_artifacts
 from .validation import ValidationError
 
@@ -13,7 +14,8 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("demonstrar", "executar"):
         command = commands.add_parser(name, help="Exemplo manual" if name == "demonstrar" else "Replay de arquivos locais")
-        command.add_argument("--formato", choices=("texto", "json"), default="texto")
+        command.add_argument("--formato", choices=("texto", "json", "html"), default="texto",
+                             help="Formato de stdout: texto (padrão), JSON ou HTML independente")
         if name == "executar":
             command.add_argument("--dados", required=True)
             command.add_argument("--config", required=True)
@@ -37,7 +39,8 @@ def main(argv=None):
         for event in session.events:
             if event["type"] in ("DIAGNOSTIC", "REJECTED", "UNEXECUTED"):
                 print(f"Diagnóstico: {event.get('order_id', '')} {event.get('reason')}", file=sys.stderr)
-        sys.stdout.write(json_text(summary) if args.formato == "json" else text_report(summary))
+        render = {"texto": text_report, "json": json_text, "html": html_report}
+        sys.stdout.write(render[args.formato](summary))
         return summary["exit_code"]
     except (ValidationError, OSError, UnicodeError) as exc:
         print(f"Erro: {exc}", file=sys.stderr)

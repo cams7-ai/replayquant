@@ -175,6 +175,7 @@ replayquant/engine.py
 replayquant/execution.py
 replayquant/portfolio.py
 replayquant/reporting.py
+replayquant/html_report.py
 data/fixtures/sprint06-candles.json
 experiments/sprint06-manual.json
 tests/test_sprint06.py
@@ -194,9 +195,25 @@ python -m replayquant demonstrar --formato json
 python -m replayquant executar --dados data/fixtures/sprint06-candles.json --config experiments/sprint06-manual.json --saida runs/sprint06-manual --formato texto
 ```
 
-`--formato` aceita `texto` (padrão) e `json` em ambos os subcomandos. `executar` exige `--dados`, `--config` e `--saida`. `demonstrar` não grava arquivos. `executar` cria um diretório de saída novo, incluindo pais necessários; recusa diretório/arquivo já existente, sem sobrescrever ou apagar conteúdo. Validar entradas antes de criar a saída. Uma falha de escrita deve ser relatada como técnica; arquivos incompletos nunca representam uma execução bem-sucedida.
+`--formato` aceita `texto` (padrão), `json` e `html` em ambos os subcomandos. `executar` exige `--dados`, `--config` e `--saida`. `demonstrar` não grava arquivos. `executar` cria um diretório de saída novo, incluindo pais necessários; recusa diretório/arquivo já existente, sem sobrescrever ou apagar conteúdo. Validar entradas antes de criar a saída. Uma falha de escrita deve ser relatada como técnica; arquivos incompletos nunca representam uma execução bem-sucedida.
 
 Artefatos de `executar`: `manifest.json`, `events.jsonl`, `report.json`. Todos incluem `schema_version: 1`; números financeiros em strings sem perda de precisão, ausências em `null` com motivo. O formato texto explica fórmulas, unidades e limitações; a saída JSON em stdout é somente o relatório, sem mensagens de progresso. Diagnósticos da CLI ficam em stderr.
+
+O HTML em stdout é um documento independente em português, com CSS incorporado,
+layout responsivo e estilo para impressão/PDF pelo navegador. Apresenta identidade
+da execução, código de saída, indicadores de saldos e taxas, ordens com estados e
+motivos, preenchimentos com horários UTC, memória de cálculo e limitações.
+Decimais são exibidos com vírgula sem arredondamento ou conversão para float;
+texto dinâmico recebe escape HTML. Resultados inaplicáveis permanecem
+indisponíveis com o motivo correspondente. O formato não altera os artefatos
+JSON nem os códigos 0/1/2 e não acessa recursos externos.
+
+```bash
+python -m replayquant demonstrar --formato html > /tmp/replayquant-demonstracao.html
+```
+
+No modo `executar`, salve o HTML fora de `--saida`: o redirecionamento do shell
+acontece antes do programa, e o diretório de artefatos precisa ser novo.
 
 O log deve conter abertura/fechamento, submissão, aceitação/rejeição, preenchimento e encerramento, com `seq`, horário simulado, tipo, `run_id`, referências de ordem/execução quando aplicáveis, motivo e saldos antes/depois nas transições financeiras. Aberturas não contêm OHLCV futuro. Registrar diagnóstico de duplicatas ignoradas sem duplicar eventos de mercado ou taxas.
 
@@ -224,7 +241,7 @@ Implementar testes de comportamento com `unittest`, cobrindo pelo menos:
 8. JSON malformado, chaves duplicadas, schema booleano, campos extras/ausentes, floats, não finitos, taxa inválida, slippage não zero, datas sem fuso, OHLC inconsistente, aberto, ordem temporal inválida e lacuna são recusados. Datas com offsets equivalentes normalizam para o mesmo instante.
 9. Mudanças válidas em high/low/close/volume futuros não alteram preenchimento anterior; mudança de sufixo preserva o prefixo financeiro, desconsiderando identificação global do experimento.
 10. Precisão/traps/flags externos não alteram os resultados nem são modificados. Falhas aritméticas não produzem mutação parcial.
-11. CLI: ajuda, texto/JSON, códigos 0/1/2, três artefatos válidos, recusa de sobrescrita e duas execuções iguais em diretórios distintos. Nada depende de rede, data real, caminho absoluto do repositório ou projetos vizinhos.
+11. CLI: ajuda, texto/JSON/HTML, códigos 0/1/2, três artefatos válidos, recusa de sobrescrita e duas execuções iguais em diretórios distintos. Nada depende de rede, data real, caminho absoluto do repositório ou projetos vizinhos.
 
 Preparação e comandos previstos para o implementador, na raiz do projeto:
 

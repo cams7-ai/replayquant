@@ -18,6 +18,7 @@ python --version
 python -m replayquant --help
 python -m replayquant demonstrar --formato texto
 python -m replayquant demonstrar --formato json
+python -m replayquant demonstrar --formato html > /tmp/replayquant-demonstracao.html
 python -m unittest discover -s tests -v
 ```
 
@@ -25,6 +26,13 @@ A demonstração lê `data/fixtures/sprint06-candles.json` e
 `experiments/sprint06-manual.json`, sem gravar arquivos. O texto explica as
 fórmulas; JSON em stdout contém somente o relatório estruturado. Diagnósticos
 ficam em stderr. O caso principal confere os resultados antes de retornar sucesso.
+
+Use `--formato html` para gerar um relatório profissional independente, no mesmo
+estilo do RiskGate: indicadores financeiros, tabelas de ordens e preenchimentos,
+memória de cálculo e limitações. Abra o arquivo `.html` no navegador; para
+imprimir ou salvar em PDF, use a opção **Imprimir**. O documento tem layout
+adaptado a telas menores e impressão, sem fontes, scripts ou recursos externos.
+Os valores usam vírgula decimal, preservando todos os dígitos do relatório.
 
 | Etapa | Caixa USDT | Posição BTC |
 | --- | --- | --- |
@@ -42,6 +50,19 @@ não avaliam desempenho de uma estratégia. USDT não é o próprio dólar.
 python -m replayquant executar --dados data/fixtures/sprint06-candles.json --config experiments/sprint06-manual.json --saida runs/sprint06-manual --formato texto
 ```
 
+Para salvar o HTML e os artefatos da mesma execução, escolha uma saída nova e
+redirecione stdout para um arquivo fora desse diretório:
+
+```bash
+relatorios_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint06-candles.json --config experiments/sprint06-manual.json --saida "$relatorios_dir/execucao" --formato html > "$relatorios_dir/relatorio.html"
+```
+
+O shell cria o arquivo redirecionado antes de executar o programa. Por isso,
+não redirecione para dentro de `--saida`, que precisa ser um caminho novo.
+Confira o código de saída: 2 indica replay com rejeições ou ordens não executadas,
+com relatório disponível; 1 indica falha técnica ou de entrada.
+
 A saída deve ser um caminho novo. O comando cria diretórios pais necessários,
 mas recusa diretório, arquivo ou symlink já existente. Para repetir, escolha
 outro nome; nenhum comando apaga resultados anteriores. Entradas são validadas
@@ -56,7 +77,9 @@ ausente. Falha de escrita retorna erro técnico e pode deixar arquivos incomplet
 que devem ser preservados para diagnóstico e não representam execução persistida
 com sucesso.
 
-`--formato texto|json` controla stdout nos dois subcomandos. Arquivos sempre usam
+`--formato texto|json|html` controla stdout nos dois subcomandos; texto é o padrão.
+O HTML vai somente para stdout e pode ser salvo por redirecionamento. Os três
+artefatos persistidos continuam usando
 schemas JSON v1, decimais como strings e datas UTC com microssegundos. Campos
 inaplicáveis são `null` acompanhados de motivo. O log registra fases de mercado,
 submissões, aceitações/rejeições, preenchimentos e encerramento, incluindo saldos
@@ -120,7 +143,9 @@ sobre mercado real. Não se descontam spread/slippage novamente dos resultados.
 - `execution.py`, `portfolio.py`: custos e cálculo atômico de novos saldos.
 - `engine.py`: `replay(candles, config)` e `Session`, com fases explícitas.
 - `reporting.py`, `__main__.py`: identidade, relatórios, arquivos e CLI.
+- `html_report.py`: documento HTML independente, responsivo e com estilo de impressão.
 - `tests/test_sprint06.py`: testes financeiros, temporais, de erros e reprodução.
+- `tests/test_html_report.py`: HTML, cálculos, segurança de apresentação e contratos da CLI.
 
 Modelos são registros imutáveis. `Session` expõe snapshots de consulta; alterações
 passam por `on_open(Opening)`, `on_close(Candle)`, `submit(Request)`,
