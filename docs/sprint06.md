@@ -3,7 +3,7 @@
 **Projeto:** ReplayQuant  
 **Nível:** básico  
 **Referência:** [Planejamento](planejamento.md), especialmente seções 4, 6, 21 e 23  
-**Estado:** especificação para implementação; aplicação e testes desta sprint ainda não executados.
+**Estado:** especificação preservada como referência; implementação e testes registrados em [sprint06-validacao.md](sprint06-validacao.md).
 
 ## 1. Objetivo e ponto de partida
 

@@ -1,0 +1,6 @@
+[project]
+name = "replayquant"
+version = "0.1.0"
+description = "Replay didático de ordens Spot com eventos e cálculos reproduzíveis"
+requires-python = ">=3.11"
+dependencies = []

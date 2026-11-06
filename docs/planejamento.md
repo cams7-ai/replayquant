@@ -6,7 +6,7 @@
 **Mercado inicial:** criptomoedas Spot, posições compradas, sem alavancagem  
 **Evolução:** `sprint06.md` até `sprint20.md`  
 **Natureza:** projeto educacional com práticas de engenharia e pesquisa quantitativa  
-**Estado deste documento:** planejamento; nenhuma implementação ou validação é declarada como executada.
+**Estado deste documento:** planejamento incremental; a Sprint 06 possui implementação e validação registradas em [sprint06-validacao.md](sprint06-validacao.md). As demais sprints continuam previstas.
 
 ## 1. Objetivo e resultado final
 
@@ -318,7 +318,7 @@ Estrutura conceitual; criar somente os arquivos necessários à sprint em execu�
 | Local | Conteúdo |
 | --- | --- |
 | `docs/planejamento.md` | Este plano e seu estado de evolução |
-| `sprints/sprintNN.md` | Escopo e prompt autossuficiente de cada sprint |
+| `docs/sprintNN.md` | Escopo e prompt autossuficiente de cada sprint |
 | `docs/sprintNN-validacao.md` | Como verificar e o que foi efetivamente observado |
 | `docs/sprintNN-glossario.md` | Conceitos novos da etapa |
 | `docs/estrategias/` | Regras, parâmetros e limitações de cada estratégia |
@@ -358,7 +358,7 @@ Os prompts serão produzidos junto com os respectivos documentos de sprint, ante
 - Não realizar negociação real, publicação ou alterações externas sem solicitação.
 - O roteiro de validação deverá ser atualizado após a execução, separando resultados esperados dos efetivamente observados.
 
-Este planejamento estabelece o requisito para todas as quinze sprints. Seus prompts completos serão escritos nos respectivos documentos. O próximo documento a produzir será **`sprint06.md`**, já com seu **Prompt autossuficiente de execução**.
+Este planejamento estabelece o requisito para todas as quinze sprints. A especificação da Sprint 06 e seu **Prompt autossuficiente de execução** estão em [sprint06.md](sprint06.md). Os documentos e prompts seguintes continuam previstos; o próximo será **`sprint07.md`**, antes de iniciar sua implementação.
 
 ## 24. Riscos de interpretação e limites
 
