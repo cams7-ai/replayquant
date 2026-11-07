@@ -98,6 +98,7 @@ def report(session):
         summary.update(schema_version=2, status=session.status,
                        exit_code=1 if interrupted else (2 if incomplete or blocked else 0),
                        strategy=session.config.strategy, pending_order_id=session.pending,
+                       candles=[e["candle"] for e in events if e["type"] == "CLOSE"],
                        diagnostic=session.diagnostic,
                        evaluations=[e for e in events if e["type"] == "EVALUATION"],
                        signals=[e for e in events if e["type"] == "SIGNAL"],

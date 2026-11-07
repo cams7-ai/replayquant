@@ -1,5 +1,8 @@
 """Relatório HTML independente, com valores exatos e estilo para impressão."""
 from html import escape
+from fractions import Fraction
+
+from .html_chart import candle_chart, outcome
 
 from .reporting import wire, ratio_text
 
@@ -23,6 +26,15 @@ th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vert
 th{color:var(--muted);font-weight:600}td{font-variant-numeric:tabular-nums}
 .note{border-left:3px solid var(--accent);background:#f1f8f8;padding:14px 18px;margin-top:18px}
 .calculation{padding:18px 0;border-top:1px solid var(--line)}.formula{font-family:ui-monospace,monospace;overflow-wrap:anywhere}
+.gain{color:#14794e}.loss{color:#bd2636}.neutral{color:#546779}.buy{color:#2563eb}
+.chart-scroll{overflow-x:auto}.candle-chart{display:block;width:100%;min-width:760px;height:auto}
+.axis-label{font:12px system-ui,sans-serif;fill:#546779}.axis-date{font:10px system-ui,sans-serif;fill:#546779}
+.trade-link{fill:none;stroke-width:2;stroke-dasharray:6 4;stroke:currentColor}
+.execution-marker{fill:currentColor}.execution-marker polygon{stroke:white;stroke-width:1.5}
+.marker-label{font:700 12px system-ui,sans-serif;paint-order:stroke;stroke:white;stroke-width:3;fill:currentColor}
+.chart-legend{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;font-weight:650;margin:14px 0}
+.trade-result{border-left:3px solid currentColor;padding:10px 14px;background:#f8fafc;overflow-wrap:anywhere}
+@media print{.chart-scroll{overflow:visible}.candle-chart{min-width:0!important;width:100%}}
 footer{border-top:1px solid var(--line);padding-top:20px;font-size:12px;color:var(--muted)}
 @media(max-width:720px){main{padding:24px 16px}h1{font-size:30px}.panel{padding:16px}table{min-width:680px}}
 @media print{@page{size:A4 landscape;margin:14mm}body{background:white;font-size:11px}main{max-width:none;padding:0}nav{display:none}h1{font-size:28px}.panel{border-radius:0;padding:16px}.table-wrap{overflow:visible}table{font-size:10px;min-width:0}tr,.kpi,.calculation{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}}
@@ -59,6 +71,7 @@ def html_report(value):
     state = ("Replay interrompido — relatório parcial" if interrupted else
              ("Replay concluído" if complete else "Replay concluído com bloqueios ou ordens rejeitadas ou não executadas"))
     result = value["round_trip_result"]
+    result_class = outcome(Fraction(result)) if sma and result is not None else ''
     parts = ['<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">',
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<title>ReplayQuant | Relatório de replay Spot</title>',
@@ -72,7 +85,8 @@ def html_report(value):
              f'{safe(state)}</span>',
              f'<p class="muted">Código de saída: {safe(value["exit_code"])}</p></header>',
              '<nav aria-label="Seções do relatório"><a href="#resumo">Resumo</a>'
-             '<a href="#ordens">Ordens</a><a href="#execucoes">Preenchimentos</a>'
+             + ('<a href="#grafico">Gráfico</a>' if sma else '')
+             + '<a href="#ordens">Ordens</a><a href="#execucoes">Preenchimentos</a>'
              '<a href="#calculos">Memória de cálculo</a><a href="#limites">Limitações</a></nav>',
              '<section id="resumo"><h2>Resumo financeiro</h2><div class="kpis">']
     for label, amount, unit in (
@@ -82,15 +96,16 @@ def html_report(value):
         ("Taxas totais", value["total_fees"], "USDT"),
     ):
         parts.append(f'<div class="kpi"><span>{label}</span><strong>{number(amount, unit)}</strong></div>')
-    parts.append('</div><aside class="note"><strong>Resultado líquido da ida e volta</strong>')
+    parts.append(f'</div><aside class="note"><strong class="{result_class}">Resultado líquido da ida e volta</strong>')
     if result is None:
         parts.append(f'<p>Indisponível ({safe(value["round_trip_reason"])}). '
                      'Exige exatamente uma compra seguida de uma venda integral e posição final zero.</p>')
     else:
-        parts.append(f'<p>{number(result, "USDT")}</p><p>Recebimento da venda − desembolso da compra.</p>')
+        parts.append(f'<p class="{result_class}">{number(result, "USDT")}</p><p>Recebimento da venda − desembolso da compra.</p>')
     parts.append('<p>Os saldos e custos descrevem a mecânica do replay; não avaliam uma estratégia. '
                  'Posições abertas não são marcadas a mercado nem liquidadas automaticamente.</p></aside></section>')
     if sma:
+        parts.append(candle_chart(value))
         parts.append('<section class="panel"><h2>Estratégia SMA e causalidade</h2>')
         parts.append(f'<p>Estado: {safe(value["status"])} · Pendência: {safe(value["pending_order_id"] or "nenhuma")}</p>')
         if value["diagnostic"]:

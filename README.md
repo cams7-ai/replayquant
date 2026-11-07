@@ -220,3 +220,26 @@ O relatório inclui avaliações, comparações exatas, sinais, decisões, inten
 ordens, preços de referência/efetivos e execuções. Não há lucro inventado para
 posição aberta nem liquidação automática. Veja as [regras SMA](docs/estrategias/sma.md),
 o [glossário](docs/sprint07-glossario.md) e a [validação](docs/sprint07-validacao.md).
+
+
+### Gráfico de candles no HTML SMA
+
+A saída `demonstrar --estrategia sma --formato html` inclui um gráfico SVG local,
+sem bibliotecas ou recursos externos. O mesmo gráfico aparece em `executar` com
+configuração SMA e formato HTML. Use o link **Gráfico** no relatório e passe o
+ponteiro pelos candles ou marcadores para consultar preços, horários e taxas.
+Em telas estreitas, role o gráfico horizontalmente.
+
+Os marcadores **COMPRA** (azul) e **VENDA** mostram o horário e preço efetivo dos
+preenchimentos, incluindo slippage. Sinais bloqueados, ordens rejeitadas e ordens
+sem abertura futura não recebem marcador. A ligação entre compra e venda e o
+resultado de cada ida e volta ficam verdes para ganho líquido, vermelhos para
+perda e cinzas para empate. O cálculo usa recebimento da venda após taxa menos
+desembolso da compra com taxa, sem descontar slippage novamente. A cor verde ou
+vermelha do candle representa sua variação de preço, independentemente do lucro.
+Posições abertas não recebem resultado realizado.
+
+O campo adicional `candles` do relatório SMA schema 2 contém apenas fechamentos
+processados. Isso permite reconstruir o gráfico a partir de `report.json`,
+inclusive do prefixo preservado em uma interrupção por lacuna. O relatório
+manual schema 1 mantém seu formato.

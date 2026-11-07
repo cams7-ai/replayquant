@@ -1,5 +1,47 @@
 # Sprint 07 — Registro de validação
 
+## Atualização: gráfico de candles e resultados líquidos
+
+Em **07/11/2026**, foi adicionado gráfico SVG independente à saída HTML SMA,
+com candles processados, marcadores nos horários/preços efetivos de COMPRA e
+VENDA e ligação colorida pelo resultado de cada ida e volta após taxas. O
+resumo financeiro também destaca ganho/perda. Verde indica ganho líquido,
+vermelho perda e cinza empate; compras têm marcador azul. A variação do candle
+usa cores próprias de alta/queda, sem determinar o resultado financeiro.
+
+O relatório SMA schema 2 recebeu o campo adicional `candles`, derivado somente
+dos eventos CLOSE aceitos, para reconstruir o gráfico a partir de `report.json`.
+Não foram alterados cálculos financeiros, decisões, dados de entrada ou o schema
+manual. O cálculo visual usa razões exatas, sem influência do contexto decimal;
+float é usado somente nas coordenadas de desenho. Posições abertas e ordens não
+executadas não recebem lucro realizado ou marcadores de preenchimento fictício.
+
+Verificações realmente executadas em Python **3.12.14**:
+
+| Comando | Código observado | Resultado |
+| --- | --- | --- |
+| `.venv/bin/python -m unittest discover -s tests -v` | 0 | **68 testes aprovados**, incluindo oito novos testes do gráfico |
+| `.venv/bin/python -m replayquant demonstrar --estrategia sma --formato html > /tmp/replayquant-sma-candles.html` | 0 | HTML com oito candles, COMPRA a 100100, VENDA a 99900, perda líquida 0.4 e taxas 0.2 USDT |
+| `git diff --check` | 0 | Sem erros de whitespace |
+
+Os testes cobrem ganho líquido positivo, empate, ganho bruto que vira perda após
+taxas, ausência de execução, posição aberta, lacuna sem exibir candles futuros,
+preços constantes, compatibilidade com relatórios antigos, escape de conteúdo,
+contexto decimal externo e reconstrução do HTML a partir dos artefatos da CLI.
+Todos os 60 testes anteriores continuaram aprovados, incluindo reprodução dos
+três artefatos e regressões manuais.
+
+O HTML foi inspecionado visualmente com Chrome headless em **1440×2000** e
+**390×2400**, incluindo o gráfico e sua rolagem horizontal em tela estreita.
+Capturas em `/tmp/replayquant-sma-chart-desktop.png` e
+`/tmp/replayquant-sma-chart-mobile.png`. A execução local do Chrome fora da
+sandbox usou perfis em `/tmp`, sem dependências externas na página. Não foi
+feita inspeção de impressão/PDF ou de grandes volumes de candles.
+
+O registro abaixo descreve a validação original, anterior à inclusão do gráfico;
+sua identidade de execução pertence à versão então verificada.
+
+
 Validação em **07/11/2026**, na raiz do ReplayQuant, com **Python 3.12.14** e
 ambiente `.venv`. Biblioteca padrão e `unittest`; nenhum pacote foi instalado.
 
