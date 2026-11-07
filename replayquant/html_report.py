@@ -1,7 +1,7 @@
 """Relatório HTML independente, com valores exatos e estilo para impressão."""
 from html import escape
 
-from .reporting import wire
+from .reporting import wire, ratio_text
 
 
 CSS = """
@@ -54,18 +54,22 @@ def html_report(value):
     value = wire(value)
     balance = value["final_balance"]
     complete = value["exit_code"] == 0
+    sma = value["schema_version"] == 2
+    interrupted = value.get("status") == "INTERRUPTED"
+    state = ("Replay interrompido — relatório parcial" if interrupted else
+             ("Replay concluído" if complete else "Replay concluído com bloqueios ou ordens rejeitadas ou não executadas"))
     result = value["round_trip_result"]
     parts = ['<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">',
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<title>ReplayQuant | Relatório de replay Spot</title>',
              f'<style>{CSS}</style></head><body><main>',
-             '<header><div class="eyebrow">ReplayQuant / Sprint 06</div>',
+             f'<header><div class="eyebrow">ReplayQuant / Sprint {"07" if sma else "06"}</div>',
              '<h1>Relatório de replay Spot</h1>',
              '<p class="muted">Ordens, preenchimentos e memória de cálculo de BTC/USDT.</p>',
-             '<p class="muted">Dados fictícios · Ordens manuais · Horários em UTC</p>',
+             f'<p class="muted">Dados fictícios · {"Estratégia SMA" if sma else "Ordens manuais"} · Horários em UTC</p>',
              f'<p class="identity">Execução: {safe(value["run_id"])}</p>',
              f'<span class="badge {"approved" if complete else "attention"}">'
-             f'{"Replay concluído" if complete else "Replay concluído com ordens rejeitadas ou não executadas"}</span>',
+             f'{safe(state)}</span>',
              f'<p class="muted">Código de saída: {safe(value["exit_code"])}</p></header>',
              '<nav aria-label="Seções do relatório"><a href="#resumo">Resumo</a>'
              '<a href="#ordens">Ordens</a><a href="#execucoes">Preenchimentos</a>'
@@ -86,7 +90,31 @@ def html_report(value):
         parts.append(f'<p>{number(result, "USDT")}</p><p>Recebimento da venda − desembolso da compra.</p>')
     parts.append('<p>Os saldos e custos descrevem a mecânica do replay; não avaliam uma estratégia. '
                  'Posições abertas não são marcadas a mercado nem liquidadas automaticamente.</p></aside></section>')
-    parts.append('<section class="panel" id="ordens"><h2>Ordens manuais</h2>')
+    if sma:
+        parts.append('<section class="panel"><h2>Estratégia SMA e causalidade</h2>')
+        parts.append(f'<p>Estado: {safe(value["status"])} · Pendência: {safe(value["pending_order_id"] or "nenhuma")}</p>')
+        if value["diagnostic"]:
+            parts.append(f'<p>Diagnóstico: {safe(value["diagnostic"])}</p>')
+        parts.append('<h3>Avaliações</h3>')
+        parts.append(table(("Avaliação / seq", "Horário UTC", "SMA curta", "SMA longa", "Anterior / atual", "Resultado"),
+                           ((f"{e['evaluation_id']} / {e['seq']}", e["at"], ratio_text(e["short"]),
+                             ratio_text(e["long"]), f"{e['previous_comparison']} / {e['comparison']}",
+                             e["side"] or e["reason"]) for e in value["evaluations"]),
+                           "Razões exatas em USDT/BTC; comparação -1, 0 ou 1; indisponível no aquecimento"))
+        parts.append('<h3>Sinais</h3>')
+        parts.append(table(("Sinal", "Avaliação", "Horário UTC", "Lado"),
+                           ((e["signal_id"], e["evaluation_id"], e["at"], e["side"]) for e in value["signals"]),
+                           "Cruzamentos matemáticos"))
+        parts.append('<h3>Decisões</h3>')
+        parts.append(table(("Decisão", "Sinal", "Resultado", "Ordem"),
+                           ((e["decision_id"], e["signal_id"], "Aprovada" if e["approved"] else e["reason"],
+                             e["order_id"] or "Nenhuma") for e in value["decisions"]), "Política de entrada e saída"))
+        parts.append('<h3>Intenções</h3>')
+        parts.append(table(("Intenção", "Decisão", "Ordem"),
+                           ((e["intent_id"], e["decision_id"], e["order_id"]) for e in value["intentions"]),
+                           "Intenções aprovadas; saldos mudam somente no preenchimento"))
+        parts.append('</section>')
+    parts.append(f'<section class="panel" id="ordens"><h2>{"Ordens SMA" if sma else "Ordens manuais"}</h2>')
     if value["orders"]:
         parts.append(table(("Ordem", "Submissão (UTC)", "Lado", "Estado", "Motivo"), (
             (o["request"]["id"], o["request"]["at_close"], SIDES.get(o["request"]["side"], o["request"]["side"]),
@@ -106,6 +134,10 @@ def html_report(value):
     parts.append('</section><section class="panel" id="calculos"><h2>Memória de cálculo</h2>'
                  '<p class="muted">Valores decimais exatos; taxas e fluxos de caixa em USDT.</p>')
     for calc in value["calculations"]:
+        if sma:
+            parts.append(f'<p>Preço de referência: {number(calc["reference_price"], "USDT/BTC")} · '
+                         f'Preço efetivo: {number(calc["effective_price"], "USDT/BTC")} · '
+                         f'Slippage: {safe(calc["slippage_rate"])} · Alíquota: {safe(calc["fee_rate"])}</p>')
         buy = calc["side"] == "BUY"
         parts.append(f'<article class="calculation"><h3>{safe(SIDES.get(calc["side"], calc["side"]))}'
                      f' · {safe(calc["order_id"])}</h3>'

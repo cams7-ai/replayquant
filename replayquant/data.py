@@ -2,11 +2,11 @@
 from dataclasses import dataclass, fields as dataclass_fields
 from hashlib import sha256
 from pathlib import Path
-from .models import Candle, Config, Request
+from .models import Candle, Config, Request, SMAConfig, SMAParameters
 from .validation import ValidationError, fields, version, strict_json, decimal_text, datetime_text
 
 
-def validate_series(candles):
+def validate_series(candles, *, contiguous=True):
     if type(candles) not in (list, tuple) or not candles:
         raise ValidationError("candles deve ser lista/tupla não vazia")
     seen, accepted, diagnostics = {}, [], []
@@ -16,9 +16,15 @@ def validate_series(candles):
         if candle.key in seen:
             if seen[candle.key] != candle:
                 raise ValidationError("Candle conflitante na mesma chave")
-            diagnostics.append({"reason": "DUPLICATE_CANDLE", "index": index})
+            diagnostic = {"reason": "DUPLICATE_CANDLE", "index": index}
+            if not contiguous:
+                # Diagnosticar na fronteira já disponível quando a repetição chegou,
+                # sem deslocar avaliações passadas por uma duplicata no sufixo.
+                diagnostic["at"] = accepted[-1].close_time
+            diagnostics.append(diagnostic)
             continue
-        if accepted and candle.open_time != accepted[-1].close_time:
+        if accepted and (candle.open_time <= accepted[-1].open_time
+                         or (contiguous and candle.open_time != accepted[-1].close_time)):
             raise ValidationError("Candles fora de ordem ou com lacuna")
         seen[candle.key] = candle
         accepted.append(candle)
@@ -33,7 +39,7 @@ def validate_schedule(candles, config):
         raise ValidationError("at_close deve referenciar fechamento existente")
 
 
-def parse_candles(raw):
+def parse_candles(raw, *, contiguous=True):
     envelope = strict_json(raw)
     fields(envelope, {"schema_version", "candles"}, "dados")
     version(envelope["schema_version"])
@@ -48,11 +54,22 @@ def parse_candles(raw):
         for name in ("open", "high", "low", "close", "volume"):
             values[name] = decimal_text(values[name], name)
         result.append(Candle(**values))
-    return validate_series(result)
+    return validate_series(result, contiguous=contiguous)
 
 
 def parse_config(raw):
     envelope = strict_json(raw)
+    if type(envelope) is not dict or type(envelope.get("schema_version")) is not int:
+        raise ValidationError("schema_version exige inteiro 1 ou 2")
+    if envelope["schema_version"] == 2:
+        names = {f.name for f in dataclass_fields(SMAConfig)}
+        fields(envelope, names | {"schema_version"}, "configuração SMA")
+        values = {name: envelope[name] for name in names}
+        for name in ("initial_cash", "quantity", "fee_rate", "slippage_rate"):
+            values[name] = decimal_text(values[name], name)
+        fields(values["strategy"], {"name", "short_window", "long_window"}, "strategy")
+        values["strategy"] = SMAParameters(**values["strategy"])
+        return SMAConfig(**values)
     names = {f.name for f in dataclass_fields(Config)}
     fields(envelope, names | {"schema_version"}, "configuração")
     version(envelope["schema_version"])
@@ -72,7 +89,7 @@ def parse_config(raw):
 @dataclass(frozen=True)
 class Inputs:
     candles: tuple[Candle, ...]
-    config: Config
+    config: Config | SMAConfig
     diagnostics: tuple[dict, ...]
     data_hash: str
     config_hash: str
@@ -82,8 +99,9 @@ def load_inputs(data_path, config_path):
     # Os mesmos bytes alimentam parser e hash, evitando releitura inconsistente.
     data_raw = Path(data_path).read_bytes()
     config_raw = Path(config_path).read_bytes()
-    candles, diagnostics = parse_candles(data_raw)
     config = parse_config(config_raw)
-    validate_schedule(candles, config)
+    candles, diagnostics = parse_candles(data_raw, contiguous=not isinstance(config, SMAConfig))
+    if isinstance(config, Config):
+        validate_schedule(candles, config)
     return Inputs(candles, config, diagnostics, sha256(data_raw).hexdigest(),
                   sha256(config_raw).hexdigest())

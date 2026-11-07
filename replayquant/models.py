@@ -117,6 +117,41 @@ class Config:
 
 
 @dataclass(frozen=True)
+class SMAParameters:
+    name: str
+    short_window: int
+    long_window: int
+
+    def __post_init__(self):
+        if (self.name != "SMA_CROSS" or type(self.name) is not str
+                or type(self.short_window) is not int or type(self.long_window) is not int
+                or not 1 <= self.short_window < self.long_window):
+            raise ValidationError("SMA_CROSS exige janelas inteiras 1 <= curta < longa")
+
+
+@dataclass(frozen=True)
+class SMAConfig:
+    source: str
+    symbol: str
+    interval: str
+    initial_cash: Decimal
+    quantity: Decimal
+    fee_rate: Decimal
+    slippage_rate: Decimal
+    strategy: SMAParameters
+
+    def __post_init__(self):
+        instrument(self.source, self.symbol, self.interval)
+        decimal_value(self.initial_cash, "initial_cash", positive=True)
+        decimal_value(self.quantity, "quantity", positive=True)
+        for name in ("fee_rate", "slippage_rate"):
+            if decimal_value(getattr(self, name), name) >= 1:
+                raise ValidationError(f"{name} exige [0, 1)")
+        if not isinstance(self.strategy, SMAParameters):
+            raise ValidationError("strategy exige SMAParameters")
+
+
+@dataclass(frozen=True)
 class Order:
     request: Request
     status: str
@@ -139,6 +174,6 @@ class Fill:
         identifier(self.order_id, "order_id")
         side_value(self.side)
         decimal_value(self.quantity, "quantity", positive=True)
-        decimal_value(self.price, "price", positive=True)
+        decimal_value(self.price, "price", positive=True, bounded=False)
         decimal_value(self.fee, "fee", bounded=False)
         object.__setattr__(self, "at", utc(self.at))

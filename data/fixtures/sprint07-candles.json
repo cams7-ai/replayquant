@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "candles": [
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:00:00+00:00",
+      "close_time": "2026-01-01T12:01:00+00:00",
+      "open": "100000",
+      "high": "100000",
+      "low": "100000",
+      "close": "100000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:01:00+00:00",
+      "close_time": "2026-01-01T12:02:00+00:00",
+      "open": "100000",
+      "high": "100000",
+      "low": "99000",
+      "close": "99000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:02:00+00:00",
+      "close_time": "2026-01-01T12:03:00+00:00",
+      "open": "100000",
+      "high": "100000",
+      "low": "98000",
+      "close": "98000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:03:00+00:00",
+      "close_time": "2026-01-01T12:04:00+00:00",
+      "open": "100000",
+      "high": "102000",
+      "low": "100000",
+      "close": "102000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:04:00+00:00",
+      "close_time": "2026-01-01T12:05:00+00:00",
+      "open": "100000",
+      "high": "104000",
+      "low": "100000",
+      "close": "104000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:05:00+00:00",
+      "close_time": "2026-01-01T12:06:00+00:00",
+      "open": "100000",
+      "high": "100000",
+      "low": "100000",
+      "close": "100000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:06:00+00:00",
+      "close_time": "2026-01-01T12:07:00+00:00",
+      "open": "100000",
+      "high": "100000",
+      "low": "98000",
+      "close": "98000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:07:00+00:00",
+      "close_time": "2026-01-01T12:08:00+00:00",
+      "open": "100000",
+      "high": "100000",
+      "low": "99000",
+      "close": "99000",
+      "volume": "1",
+      "is_closed": true
+    }
+  ]
+}

@@ -1,7 +1,7 @@
-# ReplayQuant — Sprint 06
+# ReplayQuant — Sprints 06 e 07
 
 Laboratório educacional de replay Spot em Python, com candles fictícios e ordens
-manuais de BTC/USDT. Mostra como um relógio simulado transforma solicitações em
+manuais ou sinais SMA de BTC/USDT. Mostra como um relógio simulado transforma solicitações em
 preenchimentos, taxas e saldos. Funciona localmente com a biblioteca padrão,
 sem rede ou credenciais.
 
@@ -60,13 +60,15 @@ python -m replayquant executar --dados data/fixtures/sprint06-candles.json --con
 
 O shell cria o arquivo redirecionado antes de executar o programa. Por isso,
 não redirecione para dentro de `--saida`, que precisa ser um caminho novo.
-Confira o código de saída: 2 indica replay com rejeições ou ordens não executadas,
-com relatório disponível; 1 indica falha técnica ou de entrada.
+Confira o código de saída: 2 indica replay com bloqueios por política, rejeições
+ou ordens não executadas, com relatório disponível; 1 indica falha técnica ou de
+entrada, incluindo interrupção por lacuna no modo SMA.
 
 A saída deve ser um caminho novo. O comando cria diretórios pais necessários,
 mas recusa diretório, arquivo ou symlink já existente. Para repetir, escolha
-outro nome; nenhum comando apaga resultados anteriores. Entradas são validadas
-integralmente antes da simulação e da criação da saída.
+outro nome; nenhum comando apaga resultados anteriores. Estrutura e domínio são validados
+antes da simulação e da criação da saída; continuidade no modo SMA é conferida
+progressivamente para preservar o prefixo anterior a uma lacuna.
 
 São produzidos `manifest.json`, `events.jsonl` e `report.json`. O manifesto inclui
 hashes SHA-256 dos bytes de entrada e do código, versão Python real, política
@@ -80,23 +82,24 @@ com sucesso.
 `--formato texto|json|html` controla stdout nos dois subcomandos; texto é o padrão.
 O HTML vai somente para stdout e pode ser salvo por redirecionamento. Os três
 artefatos persistidos continuam usando
-schemas JSON v1, decimais como strings e datas UTC com microssegundos. Campos
+schema JSON v1 no modo manual e v2 no modo SMA, decimais como strings e datas UTC
+com microssegundos. Campos
 inaplicáveis são `null` acompanhados de motivo. O log registra fases de mercado,
 submissões, aceitações/rejeições, preenchimentos e encerramento, incluindo saldos
 antes/depois dos preenchimentos.
 
 | Código de saída | Significado |
 | --- | --- |
-| 0 | Replay concluído sem ordens rejeitadas ou não executadas; roteiro vazio também é válido |
-| 1 | Dados/configuração inválidos, aritmética inexata ou falha técnica, inclusive saída existente |
-| 2 | Replay concluído com ordem rejeitada/não executada; os artefatos preservam o diagnóstico |
+| 0 | Replay concluído sem bloqueios por política ou ordens rejeitadas/não executadas; inclui roteiro vazio e aquecimento sem sinais |
+| 1 | Dados/configuração inválidos, aritmética inexata, falha técnica ou saída existente; lacuna SMA gera relatório parcial identificado |
+| 2 | Replay concluído com decisão bloqueada por política ou ordem rejeitada/não executada; os artefatos preservam o diagnóstico |
 
 Erros de sintaxe do `argparse` também retornam 2, sem iniciar o replay. Exceções
 inesperadas propagam com traceback; não são convertidas em rejeição de ordem.
 
 ## Contratos e modelo
 
-A especificação integral está em [docs/sprint06.md](docs/sprint06.md). Cada candle
+Os contratos estão em [Sprint 06](docs/sprint06.md) e [Sprint 07](docs/sprint07.md). Cada candle
 fechado de um minuto tem origem/par/intervalo, início/fim, OHLC, volume base e
 `is_closed=true`. Os arquivos contêm exatamente as chaves documentadas.
 Decimais de entrada usam ponto, sem expoentes/espaços, até 18 dígitos no coeficiente
@@ -129,23 +132,26 @@ da alteração financeira. Saldos derivados podem ter mais dígitos que as entra
 desde que representáveis exatamente. Contexto decimal externo é preservado.
 
 Duplicatas equivalentes de candle não geram outro evento de mercado; o diagnóstico
-fica no log. Conflitos e séries fora de ordem ou com lacunas impedem o início do
-replay. Repetir ordem/execução idêntica é inócuo; ID reutilizado com outro conteúdo
+fica no log. Conflitos e séries fora de ordem impedem o início do replay. Lacunas
+impedem o início no modo manual; no SMA, interrompem na primeira fronteira ausente
+e preservam a carteira e a pendência sem incorporar o candle posterior. Repetir ordem/execução idêntica é inócuo; ID reutilizado com outro conteúdo
 é erro. Deduplicação é local em memória e não oferece recuperação após reinício.
 
 O preenchimento total supõe liquidez ilimitada, sem limite pelo volume do candle.
-Não há modelo de spread; slippage zero é uma configuração fictícia, sem evidência
-sobre mercado real. Não se descontam spread/slippage novamente dos resultados.
+Não há modelo de spread; slippage é zero no modo manual e uma fração fixa adversa
+no SMA. Essas configurações são hipóteses fictícias sobre execução. Não se descontam spread/slippage novamente dos resultados.
 
 ## Organização e API
 
 - `validation.py`, `models.py`, `data.py`: contratos, JSON e pré-validação integral.
 - `execution.py`, `portfolio.py`: custos e cálculo atômico de novos saldos.
-- `engine.py`: `replay(candles, config)` e `Session`, com fases explícitas.
+- `engine.py`: `replay(candles, config)`, `Session` manual e `SMASession`, com fases explícitas.
+- `strategies.py`: `SMACross`, histórico limitado à janela longa e comparação por razões exatas.
 - `reporting.py`, `__main__.py`: identidade, relatórios, arquivos e CLI.
 - `html_report.py`: documento HTML independente, responsivo e com estilo de impressão.
 - `tests/test_sprint06.py`: testes financeiros, temporais, de erros e reprodução.
 - `tests/test_html_report.py`: HTML, cálculos, segurança de apresentação e contratos da CLI.
+- `tests/test_sprint07.py`: SMA, causalidade, slippage, lacunas, pendências e CLI versão 2.
 
 Modelos são registros imutáveis. `Session` expõe snapshots de consulta; alterações
 passam por `on_open(Opening)`, `on_close(Candle)`, `submit(Request)`,
@@ -156,5 +162,61 @@ Consulte o [planejamento](docs/planejamento.md), o
 [glossário](docs/sprint06-glossario.md) e os
 [resultados de validação](docs/sprint06-validacao.md).
 
-SMA, risco, reservas, ledger completo, dados reais e métricas serão introduzidos
-nas sprints previstas. Esta entrega não conecta exchanges nem recomenda operações.
+Risco, reservas, ledger completo, dados reais e métricas continuam previstos para
+sprints posteriores. Esta entrega não conecta exchanges nem recomenda operações.
+
+
+## Estratégia SMA — Sprint 07
+
+Com `.venv` ativada, execute:
+
+```bash
+python -m replayquant demonstrar --estrategia sma --formato texto
+python -m replayquant demonstrar --estrategia sma --formato json
+python -m replayquant demonstrar --estrategia sma --formato html > /tmp/replayquant-sprint07.html
+python -m replayquant executar --dados data/fixtures/sprint07-candles.json --config experiments/sprint07-sma.json --saida runs/sprint07-sma --formato texto
+```
+
+A demonstração confere oito avaliações, dois sinais e dois preenchimentos. Com
+janelas 2/3, quantidade 0.001 BTC, taxa e slippage 0.001, compra a 100100 e vende a
+99900 USDT/BTC. Taxas totais 0.2 USDT; caixa final **999.6 USDT**; resultado líquido
+**-0.4 USDT**. O prejuízo fictício é um resultado esperado do teste de correção.
+
+`experiments/sprint07-sma.json` usa schema 2, com `strategy` contendo `name:
+SMA_CROSS`, `short_window` e `long_window`, inteiros `1 <= curta < longa`; não
+aceita `orders`. Schema 1 conserva o roteiro manual e slippage zero. `executar`
+seleciona o modo pela configuração; `--estrategia sma` pertence a `demonstrar`.
+A API usa `SMAConfig`/`SMAParameters` ou `Config`/`Request`, respectivamente.
+`load_inputs` carrega os arquivos; `replay` despacha pelo tipo da configuração.
+
+A estratégia só recebe fechamentos liberados. Precisa de `longa + 1` candles
+contíguos para comparar médias anterior/atual. BUY ocorre de curta <= longa para
+curta > longa; SELL de curta >= longa para curta < longa. Igualdade atual e
+permanência não repetem sinal. As decisões usam `Fraction` exato; a exibição de
+médias no relatório preserva numerador/denominador, sem influenciar a decisão.
+
+A sequência é fechamento → avaliação → sinal → decisão → intenção/ordem →
+abertura seguinte → preenchimento. `seq` distingue eventos no mesmo timestamp
+UTC, por convenção de latência zero. O slippage multiplica open por `1+a` na
+compra e `1-a` na venda, e a taxa incide sobre o bruto efetivo. A estimativa no
+fechamento já inclui ambos; caixa e posição são revalidados no preenchimento.
+Uma rejeição não gera nova tentativa sem novo cruzamento.
+
+Para alimentar eventos progressivamente, use `SMASession(config)` com
+`on_open(candle.opening())`, `on_close(candle)` e `finish()`. `handle_signal` é a
+fronteira de integração de sinais identificados na fase de fechamento, com
+idempotência e decisão por política; o replay normal chama essa fronteira a
+partir do cruzamento SMA. `submit` não aceita ordens manuais novas nesse modo.
+Não passe o candle completo a `on_open` nem mude a configuração durante a sessão.
+
+Em uma lacuna, a sessão fica `INTERRUPTED` com `DATA_GAP`, antes da abertura
+posterior. `report` e `executar` preservam relatório parcial, saldos e ordem
+pendente `NEW`, com código 1. A ordem não vira `NO_FUTURE_OPEN`. Corrija/versione
+os dados e inicie nova execução; a sessão interrompida não continua. O manifesto
+identifica o arquivo completo, inclusive o trecho não processado. No encerramento
+normal sem abertura futura, a ordem termina `UNEXECUTED/NO_FUTURE_OPEN`, código 2.
+
+O relatório inclui avaliações, comparações exatas, sinais, decisões, intenções,
+ordens, preços de referência/efetivos e execuções. Não há lucro inventado para
+posição aberta nem liquidação automática. Veja as [regras SMA](docs/estrategias/sma.md),
+o [glossário](docs/sprint07-glossario.md) e a [validação](docs/sprint07-validacao.md).

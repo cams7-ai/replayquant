@@ -4,7 +4,7 @@
 **Nível:** básico  
 **Referência:** [Planejamento](planejamento.md), especialmente seções 4, 7, 21 e 23  
 **Pré-requisito:** [Sprint 06](sprint06.md), com [validação registrada](sprint06-validacao.md)  
-**Estado:** especificação para implementação; este documento não comprova execução ou conclusão da Sprint 07.
+**Estado:** especificação preservada como referência; implementação e verificações registradas em [sprint07-validacao.md](sprint07-validacao.md).
 
 ## 1. Objetivo e ponto de partida
 
