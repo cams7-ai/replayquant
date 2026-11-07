@@ -31,7 +31,8 @@ Use `--formato html` para gerar um relatório profissional independente, no mesm
 estilo do RiskGate: indicadores financeiros, tabelas de ordens e preenchimentos,
 memória de cálculo e limitações. Abra o arquivo `.html` no navegador; para
 imprimir ou salvar em PDF, use a opção **Imprimir**. O documento tem layout
-adaptado a telas menores e impressão, sem fontes, scripts ou recursos externos.
+adaptado a telas menores e impressão. O relatório manual não usa scripts; o SMA
+incorpora o JavaScript do gráfico, sem buscar fontes ou recursos na internet.
 Os valores usam vírgula decimal, preservando todos os dígitos do relatório.
 
 | Etapa | Caixa USDT | Posição BTC |
@@ -224,11 +225,23 @@ o [glossário](docs/sprint07-glossario.md) e a [validação](docs/sprint07-valid
 
 ### Gráfico de candles no HTML SMA
 
-A saída `demonstrar --estrategia sma --formato html` inclui um gráfico SVG local,
-sem bibliotecas ou recursos externos. O mesmo gráfico aparece em `executar` com
-configuração SMA e formato HTML. Use o link **Gráfico** no relatório e passe o
-ponteiro pelos candles ou marcadores para consultar preços, horários e taxas.
-Em telas estreitas, role o gráfico horizontalmente.
+A saída `demonstrar --estrategia sma --formato html` inclui um gráfico interativo
+com **TradingView Lightweight Charts 5.2.0**. O bundle JavaScript, os dados e os
+avisos de licença estão incorporados no próprio HTML; não há CDN, API ou download
+ao abrir o relatório. O mesmo gráfico aparece em `executar` com configuração SMA
+e formato HTML.
+
+Use o link **Gráfico**, arraste para navegar e use a roda do mouse ou os botões
+**Zoom +**, **Zoom −**, **Ver tudo** e **Últimos 60** para ajustar o período.
+O eixo de preços fica fixo à esquerda e o cursor mostra linhas de referência de
+preço/tempo. A grade vertical é pontilhada. Ao mover o cursor, os detalhes abaixo
+do gráfico mostram OHLCV, preço efetivo, quantidade, taxa e resultado da execução
+naquele candle com os valores exatos do replay. Os números convertidos para
+JavaScript são usados somente no desenho do gráfico.
+
+O gráfico exige JavaScript habilitado; as tabelas e os resultados continuam
+legíveis sem ele. A impressão captura a visualização atual do Canvas como imagem;
+use **Ver tudo** antes de imprimir para incluir todo o período.
 
 Os marcadores **COMPRA** (azul) e **VENDA** mostram o horário e preço efetivo dos
 preenchimentos, incluindo slippage. Sinais bloqueados, ordens rejeitadas e ordens
@@ -243,3 +256,69 @@ O campo adicional `candles` do relatório SMA schema 2 contém apenas fechamento
 processados. Isso permite reconstruir o gráfico a partir de `report.json`,
 inclusive do prefixo preservado em uma interrupção por lacuna. O relatório
 manual schema 1 mantém seu formato.
+
+
+### Cenário SMA com 240 candles
+
+Para explorar um gráfico mais longo, use
+`data/fixtures/sprint07-candles-expandido.json` e
+`experiments/sprint07-sma-expandido.json`. O cenário tem **240 candles de um
+minuto**, em **01/01/2026 das 12:00 às 16:00 UTC**, com altas, quedas, pavios,
+pequenas diferenças entre fechamentos/aberturas e volume variável. Os preços
+partem de aproximadamente 100000 USDT/BTC. São dados sintéticos, sem calibração
+a um mercado real, gerados com aritmética inteira em centavos e semente local 7,
+com reversão final controlada de semente 707. O replay lê somente o JSON fixo e
+não usa aleatoriedade. A fixture foi construída para mostrar operações vencedoras
+e perdedoras com saldo final positivo, como exemplo visual solicitado.
+
+A configuração usa janelas SMA **9/21**, quantidade 0.001 BTC, capital inicial
+1000 USDT, taxa 0.001 e slippage 0.001. Os parâmetros foram mantidos; a trajetória
+sintética foi ajustada deliberadamente para a demonstração, sem evidência de
+rentabilidade em mercado real. O arquivo de oito candles continua sendo a conferência manual
+usada por `demonstrar --estrategia sma` e pelos testes.
+
+Com `.venv` ativada, escolha um diretório de saída novo:
+
+```bash
+cenario_sma_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint07-sma-expandido.json --saida "$cenario_sma_dir/execucao" --formato html > "$cenario_sma_dir/relatorio.html"
+```
+
+Abra `relatorio.html` no navegador e use zoom ou arraste para explorar os candles. Na validação deste cenário houve 240 avaliações, seis preenchimentos
+e três idas e voltas encerradas, com código 0 e posição final zerada:
+
+| Operação | Compra UTC | Venda UTC | Resultado líquido USDT |
+| --- | --- | --- | --- |
+| 1 | 12:38 | 13:25 | +0.73754871919 |
+| 2 | 14:20 | 15:02 | +0.77489849630 |
+| 3 | 15:26 | 15:39 | -0.61089654715 |
+| Total | — | — | **+0.90155066834** |
+
+O saldo final é **1000.90155066834 USDT**, BTC zero, com taxas totais de
+**0.60339361166 USDT**. Os resultados já incluem taxas de ambas as pontas e
+slippage nos preços efetivos. O resumo HTML e o gráfico exibem a soma realizada
+em verde, além dos resultados individuais verdes/vermelhos. O campo JSON
+`round_trip_result` mantém seu contrato de uma única ida e volta e fica
+indisponível para múltiplas operações; os preenchimentos e cálculos permitem
+reconciliar o total mostrado no HTML.
+
+
+### Biblioteca incorporada e reprodução
+
+Os arquivos em `replayquant/assets/` contêm a versão fixa da biblioteca, o
+controlador local, LICENSE/NOTICE e a licença MIT de fancy-canvas 2.1.0, incluído
+no bundle. Fontes, integridade SHA-512 dos pacotes npm e hashes SHA-256 dos arquivos
+vendorizados estão em `lightweight-charts-vendor.json`. Não é necessário instalar
+Node/npm, pacotes Python ou conectar à internet para executar o projeto.
+
+A atribuição à TradingView e os textos de licença estão no HTML. Consulte a
+[documentação oficial](https://tradingview.github.io/lightweight-charts/docs)
+e os [termos do projeto](https://github.com/tradingview/lightweight-charts).
+O motor de replay continua usando apenas biblioteca padrão e `Decimal`/razões
+exatas. A dependência JavaScript é exclusiva da apresentação HTML SMA.
+
+O manifesto passa a incluir todos os arquivos de `replayquant/assets/` na lista
+ordenada `code_files`, além dos arquivos Python e metadados já definidos. Assim,
+alterar o bundle, o controlador ou as licenças também altera `code_hash`/`run_id`.
+O manifesto SMA registra a biblioteca em `frontend_dependencies`; hashes dos
+candles/configuração e resultados financeiros continuam com seus contratos.

@@ -1,0 +1,24 @@
+{
+  "name": "lightweight-charts",
+  "version": "5.2.0",
+  "license": "Apache-2.0",
+  "source": "https://registry.npmjs.org/lightweight-charts/-/lightweight-charts-5.2.0.tgz",
+  "npm_integrity": "sha512-ey3Vas8UhV06ni+LT9TA1nEe4y8So4Mi6CL/oarNHFMyTktz/xy8e8+oh04Q//eO3t6etvFXgayz2fClyFQb5w==",
+  "notice_source": "https://raw.githubusercontent.com/tradingview/lightweight-charts/v5.2.0/NOTICE",
+  "files": {
+    "lightweight-charts-5.2.0.standalone.production.js": "c0992580867c4912cc9385b3c2728315bcc1a76c7f1087dca908430fccdf31d7",
+    "lightweight-charts-LICENSE.txt": "70c9d5382506dd184465425c08a99ad9bd6d9ac1313c252968ba0b585e5ef823",
+    "lightweight-charts-NOTICE.txt": "f76c6afab94884448f0426e30d6e9d555ca7247894cd3484e477d2f87513036e",
+    "fancy-canvas-LICENSE.txt": "52d2ba0c8f8f4532bd524358d679693ff3dd9e40c56fe0c0c63061ed0733aa18"
+  },
+  "bundled_dependencies": [
+    {
+      "name": "fancy-canvas",
+      "version": "2.1.0",
+      "source": "https://registry.npmjs.org/fancy-canvas/-/fancy-canvas-2.1.0.tgz",
+      "npm_integrity": "sha512-nifxXJ95JNLFR2NgRV4/MxVP45G9909wJTEKz5fg/TZS20JJZA6hfgRVh/bC9bwl2zBtBNcYPjiBE4njQHVBwQ==",
+      "license": "MIT",
+      "license_source": "https://raw.githubusercontent.com/tradingview/fancy-canvas/master/LICENSE"
+    }
+  ]
+}

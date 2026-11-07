@@ -389,6 +389,7 @@ class ArtifactAndCLITests(unittest.TestCase):
             self.assertEqual(metadata["data_hash"], sha256(DATA.read_bytes()).hexdigest())
             self.assertEqual(metadata["config_hash"], sha256(CONFIG.read_bytes()).hexdigest())
             expected_paths = sorted([p.relative_to(ROOT).as_posix() for p in (ROOT / "replayquant").rglob("*.py")]
+                                    + [p.relative_to(ROOT).as_posix() for p in (ROOT / "replayquant/assets").rglob("*") if p.is_file()]
                                     + ["pyproject.toml", "requirements.lock", ".python-version"])
             self.assertEqual([f["path"] for f in metadata["code_files"]], expected_paths)
             for item in metadata["code_files"]:

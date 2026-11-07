@@ -6,6 +6,13 @@
 **Pré-requisito:** [Sprint 06](sprint06.md), com [validação registrada](sprint06-validacao.md)  
 **Estado:** especificação preservada como referência; implementação e verificações registradas em [sprint07-validacao.md](sprint07-validacao.md).
 
+**Atualização de apresentação autorizada após a sprint:** o HTML SMA usa
+Lightweight Charts 5.2.0, incorporado com licenças/NOTICE e controlador local.
+Essa dependência de navegador substitui o SVG anterior, mantém a execução offline
+e não adiciona pacotes Python ou altera decisões financeiras. A identidade do
+código inclui agora todos os arquivos em `replayquant/assets/`, além dos Python
+e metadados da definição original; detalhes no README e registro de validação.
+
 ## 1. Objetivo e ponto de partida
 
 Evoluir o motor existente para produzir sinais de cruzamento de médias móveis simples (SMA) usando apenas candles fechados já disponíveis. Separar avaliação, sinal, decisão, ordem e preenchimento, demonstrando por que o preço da próxima abertura não pode participar da decisão no fechamento anterior.
@@ -209,7 +216,7 @@ python -m unittest discover -s tests -v
 
 `demonstrar --estrategia sma` verifica os resultados obrigatórios e retorna 0 somente se conferirem. Não grava artefatos. Todos os formatos explicam avaliações, sinais, decisões, ordens, execuções e estado final; HTML permanece independente, responsivo, imprimível e com escape de texto dinâmico. JSON stdout contém somente relatório; diagnósticos vão para stderr. Valores financeiros são strings, ausência é `null` com motivo e horários são UTC canônicos.
 
-`executar` mantém `--dados`, `--config` e `--saida` obrigatórios e `--formato texto|json|html`. Criar saída nova, sem sobrescrever/apagar. Manter `manifest.json`, `events.jsonl` e `report.json`, ampliando no schema 2 a rastreabilidade de estratégia, comparações exatas (numeradores/denominadores ou inteiros escalados), decisões, pendências e status `COMPLETED`/`INTERRUPTED`. O relatório SMA inclui também `candles`, contendo somente candles fechados processados, para reconstruir o gráfico HTML. O gráfico marca preenchimentos efetivos de COMPRA/VENDA e colore o resultado de cada ida e volta após taxas (verde para ganho, vermelho para perda, cinza para empate), sem atribuir resultado realizado à posição aberta. O manifesto registra parâmetros, aquecimento, convenção temporal, política de lacunas, taxa e slippage, além dos hashes e metadados da Sprint 06. Reutilizar a definição canônica de hash de código e `run_id`; não incluir relógio real ou caminho de saída na identidade.
+`executar` mantém `--dados`, `--config` e `--saida` obrigatórios e `--formato texto|json|html`. Criar saída nova, sem sobrescrever/apagar. Manter `manifest.json`, `events.jsonl` e `report.json`, ampliando no schema 2 a rastreabilidade de estratégia, comparações exatas (numeradores/denominadores ou inteiros escalados), decisões, pendências e status `COMPLETED`/`INTERRUPTED`. O relatório SMA inclui também `candles`, contendo somente candles fechados processados, para reconstruir o gráfico HTML. O gráfico marca preenchimentos efetivos de COMPRA/VENDA e colore o resultado de cada ida e volta após taxas (verde para ganho, vermelho para perda, cinza para empate), sem atribuir resultado realizado à posição aberta. Na apresentação atual, usa Lightweight Charts incorporado, com zoom, navegação, eixo de preços fixo, cursor de preço/tempo e detalhes exatos abaixo do Canvas. O manifesto registra parâmetros, aquecimento, convenção temporal, política de lacunas, taxa e slippage, além dos hashes e metadados da Sprint 06. Reutilizar a definição canônica de hash de código e `run_id`; não incluir relógio real ou caminho de saída na identidade.
 
 | Código | Contrato SMA |
 | --- | --- |

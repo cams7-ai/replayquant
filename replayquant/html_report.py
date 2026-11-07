@@ -2,7 +2,7 @@
 from html import escape
 from fractions import Fraction
 
-from .html_chart import candle_chart, outcome
+from .html_chart import candle_chart, outcome, closed_trades, exact_text
 
 from .reporting import wire, ratio_text
 
@@ -21,23 +21,27 @@ h3{font-size:18px;margin:0 0 12px}p{margin:8px 0}.muted,small{color:var(--muted)
 .panel{margin:22px 0}.badge{display:inline-block;font-size:12px;font-weight:750;padding:5px 12px;border-radius:20px}
 .approved{background:#e0f4ed;color:#146347}.attention{background:#fff0d3;color:#815900}
 nav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}a{color:var(--accent)}nav a{padding:7px 14px;border:1px solid var(--line);border-radius:6px;text-decoration:none;background:white}
-.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}caption{text-align:left;color:var(--muted);margin-bottom:12px}
-th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}
-th{color:var(--muted);font-weight:600}td{font-variant-numeric:tabular-nums}
+.table-wrap{overflow-x:auto}.table-wrap table{width:100%;border-collapse:collapse;font-size:13px}caption{text-align:left;color:var(--muted);margin-bottom:12px}
+.table-wrap th,.table-wrap td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.table-wrap th{color:var(--muted);font-weight:600}.table-wrap td{font-variant-numeric:tabular-nums}
 .note{border-left:3px solid var(--accent);background:#f1f8f8;padding:14px 18px;margin-top:18px}
 .calculation{padding:18px 0;border-top:1px solid var(--line)}.formula{font-family:ui-monospace,monospace;overflow-wrap:anywhere}
 .gain{color:#14794e}.loss{color:#bd2636}.neutral{color:#546779}.buy{color:#2563eb}
-.chart-scroll{overflow-x:auto}.candle-chart{display:block;width:100%;min-width:760px;height:auto}
-.axis-label{font:12px system-ui,sans-serif;fill:#546779}.axis-date{font:10px system-ui,sans-serif;fill:#546779}
-.trade-link{fill:none;stroke-width:2;stroke-dasharray:6 4;stroke:currentColor}
-.execution-marker{fill:currentColor}.execution-marker polygon{stroke:white;stroke-width:1.5}
-.marker-label{font:700 12px system-ui,sans-serif;paint-order:stroke;stroke:white;stroke-width:3;fill:currentColor}
+.candle-chart{width:100%;height:470px;min-width:0}
+.chart-controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chart-controls[hidden]{display:none}
+.chart-controls button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 12px;color:var(--accent);cursor:pointer;font:inherit}
+.chart-controls button:hover,.chart-controls button:focus-visible{background:#e8f5f5;outline:2px solid var(--accent);outline-offset:1px}
+.chart-axis-title,.chart-attribution{font-size:12px;color:var(--muted)}
+.chart-readout{font:12px/1.6 ui-monospace,monospace;white-space:pre-line;min-height:42px;overflow-wrap:anywhere}
+.chart-licenses{font-size:12px;color:var(--muted)}.chart-licenses pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.chart-print-image{display:none}
 .chart-legend{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;font-weight:650;margin:14px 0}
 .trade-result{border-left:3px solid currentColor;padding:10px 14px;background:#f8fafc;overflow-wrap:anywhere}
-@media print{.chart-scroll{overflow:visible}.candle-chart{min-width:0!important;width:100%}}
+@media print{.candle-chart,.chart-controls,.chart-readout,#chart-help,.chart-licenses{display:none!important}.chart-print-image{display:block;width:100%;height:auto}}
+
 footer{border-top:1px solid var(--line);padding-top:20px;font-size:12px;color:var(--muted)}
-@media(max-width:720px){main{padding:24px 16px}h1{font-size:30px}.panel{padding:16px}table{min-width:680px}}
-@media print{@page{size:A4 landscape;margin:14mm}body{background:white;font-size:11px}main{max-width:none;padding:0}nav{display:none}h1{font-size:28px}.panel{border-radius:0;padding:16px}.table-wrap{overflow:visible}table{font-size:10px;min-width:0}tr,.kpi,.calculation{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}}
+@media(max-width:720px){main{padding:24px 16px}h1{font-size:30px}.panel{padding:16px}.table-wrap table{min-width:680px}}
+@media print{@page{size:A4 landscape;margin:14mm}body{background:white;font-size:11px}main{max-width:none;padding:0}nav{display:none}h1{font-size:28px}.panel{border-radius:0;padding:16px}.table-wrap{overflow:visible}.table-wrap table{font-size:10px;min-width:0}.table-wrap tr,.kpi,.calculation{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}}
 """
 
 SIDES = {"BUY": "Compra", "SELL": "Venda"}
@@ -71,7 +75,11 @@ def html_report(value):
     state = ("Replay interrompido — relatório parcial" if interrupted else
              ("Replay concluído" if complete else "Replay concluído com bloqueios ou ordens rejeitadas ou não executadas"))
     result = value["round_trip_result"]
-    result_class = outcome(Fraction(result)) if sma and result is not None else ''
+    trades = closed_trades(value) if sma else []
+    multiple_closed = len(trades) > 1
+    display_result = sum((t['net'] for t in trades), Fraction()) if multiple_closed else result
+    result_class = outcome(Fraction(display_result)) if sma and display_result is not None else ''
+    result_heading = 'Resultado líquido das operações encerradas' if multiple_closed else 'Resultado líquido da ida e volta'
     parts = ['<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">',
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<title>ReplayQuant | Relatório de replay Spot</title>',
@@ -96,12 +104,16 @@ def html_report(value):
         ("Taxas totais", value["total_fees"], "USDT"),
     ):
         parts.append(f'<div class="kpi"><span>{label}</span><strong>{number(amount, unit)}</strong></div>')
-    parts.append(f'</div><aside class="note"><strong class="{result_class}">Resultado líquido da ida e volta</strong>')
-    if result is None:
+    parts.append(f'</div><aside class="note"><strong class="{result_class}">{result_heading}</strong>')
+    if display_result is None:
         parts.append(f'<p>Indisponível ({safe(value["round_trip_reason"])}). '
                      'Exige exatamente uma compra seguida de uma venda integral e posição final zero.</p>')
     else:
-        parts.append(f'<p class="{result_class}">{number(result, "USDT")}</p><p>Recebimento da venda − desembolso da compra.</p>')
+        displayed = exact_text(display_result) if multiple_closed else result
+        explanation = ('Soma dos resultados realizados, com taxas de compra e venda; '
+                       'posições abertas não entram nesse valor.' if multiple_closed else
+                       'Recebimento da venda − desembolso da compra.')
+        parts.append(f'<p class="{result_class}">{number(displayed, "USDT")}</p><p>{explanation}</p>')
     parts.append('<p>Os saldos e custos descrevem a mecânica do replay; não avaliam uma estratégia. '
                  'Posições abertas não são marcadas a mercado nem liquidadas automaticamente.</p></aside></section>')
     if sma:

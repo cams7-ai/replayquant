@@ -38,6 +38,7 @@ def json_text(value):
 def manifest(inputs):
     root = Path(__file__).resolve().parent.parent
     paths = sorted([p.relative_to(root).as_posix() for p in (root / "replayquant").rglob("*.py")]
+                   + [p.relative_to(root).as_posix() for p in (root / "replayquant/assets").rglob("*") if p.is_file()]
                    + ["pyproject.toml", "requirements.lock", ".python-version"])
     code_files = [{"path": path, "sha256": sha256((root / path).read_bytes()).hexdigest()}
                   for path in paths]
@@ -53,6 +54,8 @@ def manifest(inputs):
             "seed": None, "seed_reason": "NO_RANDOMNESS"}
     if isinstance(inputs.config, SMAConfig):
         metadata.update(schema_version=2, strategy=inputs.config.strategy,
+                        frontend_dependencies=[{"name": "lightweight-charts", "version": "5.2.0",
+                                                "license": "Apache-2.0", "bundled": True}],
                         warmup_candles=inputs.config.strategy.long_window + 1,
                         temporal_policy="CLOSE_EVALUATE_DECIDE_OPEN_FILL_ZERO_LATENCY",
                         gap_policy="INTERRUPT_PRESERVE_STATE")

@@ -1,5 +1,225 @@
 # Sprint 07 — Registro de validação
 
+## Atualização: TradingView Lightweight Charts incorporado
+
+Em **07/11/2026**, após autorização do usuário, o SVG foi substituído por
+**Lightweight Charts 5.2.0**, com bundle standalone incorporado ao HTML e
+controlador local em `replayquant/assets/chart.js`. A apresentação ganhou zoom,
+navegação, controles de período, cursor de preço/tempo, eixos nativos e detalhes
+exatos de candles/execuções. Os marcadores usam o horário e o preço efetivo do
+fill; linhas entre compra/venda mantêm as cores do líquido após taxas.
+
+O gráfico exige JavaScript, com mensagem alternativa quando desabilitado. As
+tabelas e a memória de cálculo permanecem estáticas e acessíveis. A impressão
+captura o Canvas atual como PNG; **Ver tudo** permite incluir todo o período.
+Não há CDN, busca de dados ou recursos externos ao abrir o arquivo. O link de
+atribuição à TradingView é navegação opcional, não carregamento de recurso.
+
+### Dependência, licença e identidade
+
+- Bundle obtido do pacote oficial `lightweight-charts@5.2.0` no registro npm,
+  com integridade **SHA-512 verificada** contra os metadados publicados.
+- LICENSE Apache-2.0 do pacote e NOTICE do tag oficial `v5.2.0` foram preservados.
+  A dependência incluída `fancy-canvas@2.1.0` usa MIT; seu aviso oficial também
+  foi incluído, pois não estava presente no tarball npm.
+- Fontes, versão e hashes estão em
+  `replayquant/assets/lightweight-charts-vendor.json`. LICENSE/NOTICE e atribuição
+  aparecem no próprio HTML, e o bundle conserva seu cabeçalho original.
+- O manifesto inclui **todos os arquivos de `replayquant/assets/`** na lista
+  ordenada `code_files`, além dos Python e metadados já existentes. A verificação
+  independente do hash foi atualizada para cobrir esses assets. Assim, mudar
+  JavaScript ou avisos altera a identidade mesmo sem mudar arquivos Python.
+- `frontend_dependencies` registra a biblioteca no manifesto SMA. Não foram
+  instalados pacotes Python ou npm; o projeto continua executável offline.
+
+### Verificações realmente executadas
+
+| Verificação | Código/resultado observado |
+| --- | --- |
+| `.venv/bin/python -m unittest discover -s tests -v` | **0; 71 testes aprovados** em Python 3.12.14 |
+| `demonstrar --estrategia sma --formato html` | **0**, HTML independente com oito candles e duas execuções |
+| Duas invocações `executar` com fixture/configuração ampliadas e `--formato html` | **0/0**, 240 candles, seis execuções e posição final zerada |
+| Comparação byte a byte de manifesto, eventos e relatório das duas saídas | Três arquivos idênticos |
+| Chrome headless com DNS externo bloqueado, em desktop e layout móvel | **0/0**, inicialização e verificações de interação aprovadas |
+| Caso de preços constantes no Chrome | **0**, gráfico inicializado sem execuções |
+| `git diff --check` | **0**, sem erro de whitespace |
+
+Os testes adaptados verificam os mesmos contratos financeiros e temporais na
+nova fronteira de apresentação, passando a inspecionar o payload incorporado em
+vez de elementos SVG. Conferem dados fechados, preços efetivos, ganho/perda após
+taxas, posição aberta sem lucro inventado, lacunas, códigos da CLI, reconstrução
+por `report.json`, contexto decimal externo, versões/licenças, integridade dos
+assets e proteção de strings contra fechamento de `script`. Uma checagem antiga
+que procurava `NaN` em todo o HTML foi restringida aos dados do gráfico: a
+biblioteca usa legitimamente essa palavra em seu código interno.
+
+O CSS das tabelas foi limitado a `.table-wrap` após a conferência móvel identificar
+que o estilo responsivo do relatório interferia na tabela interna do Canvas.
+Na validação final, a tabela interna mediu **1018 px** em desktop e **324 px** no
+layout de **390 px**, coincidindo com seus contêineres e sem corte do gráfico.
+
+### Interações e conferência visual
+
+Uma cópia instrumentada em `/tmp/replayquant-lwc-browser-check.html` foi aberta
+no Chrome com `--host-resolver-rules='MAP * ~NOTFOUND'`,
+`--disable-background-networking`, `--dump-dom` e `--screenshot`. A cópia móvel
+`/tmp/replayquant-lwc-browser-mobile.html` fixa o layout em 390 px para contornar
+a largura mínima de janela do headless. A instrumentação usa a API pública e
+eventos DOM, sem alterar o HTML entregue. Foram conferidos:
+
+- Versão **5.2.0**, **240 candles** e **seis marcadores** com os preços efetivos.
+- **Últimos 60**: faixa de 60 candles; **Zoom +**: aproximadamente 40.2;
+  **Zoom −**: aproximadamente 60.3; **Ver tudo**: período completo.
+- Roda do mouse reduziu a faixa de aproximadamente 241 para 219 candles.
+- Navegação temporal mudou a faixa mantendo a posição do eixo esquerdo:
+  **203.5 px** em desktop e **33 px** em layout móvel; escala direita oculta.
+- Cursor na primeira compra exibiu os valores exatos **99940.85101 USDT/BTC**,
+  **0.001 BTC** e taxa **0.09994085101 USDT** no texto abaixo do gráfico.
+- A captura de impressão gerou PNG válido com candles, linhas e marcadores.
+  `/tmp/replayquant-lwc-print-capture.png` foi extraído e inspecionado; não foi
+  feita revisão de paginação de PDF.
+- A página não carregou recursos externos: a lista de recursos observada estava
+  vazia. Não houve erros de inicialização nos casos verificados.
+
+Capturas inspecionadas: `/tmp/replayquant-lwc-expanded-desktop.png` e
+`/tmp/replayquant-lwc-expanded-mobile.png`. Os DOMs com as medidas estão em
+`/tmp/replayquant-lwc-check-desktop.html` e
+`/tmp/replayquant-lwc-check-mobile.html`. A checagem usa captura pública do Canvas
+para concluir atualizações pendentes antes de ler faixas no modo headless.
+
+HTMLs finais: `/tmp/replayquant-sma-expandido.html` e
+`/tmp/replayquant-sma-lightweight.html`. Artefatos e argumentos/códigos das
+invocações finais em `/tmp/replayquant-lightweight-g0bpfp5d`. Identidade da execução ampliada:
+
+```text
+run_id = 0270b4aa0ec6f97f9d99e2d9d576dae8a100fc414d0c2df8550707f0c1936054
+```
+
+Resultado financeiro preservado: caixa **1000.90155066834 USDT**, BTC **zero**,
+três operações encerradas (duas positivas e uma negativa), taxas
+**0.60339361166 USDT**, lucro realizado **0.90155066834 USDT**. Não foram alterados
+candles, parâmetros SMA, sinais, ordens ou ledger nesta integração.
+
+A validação de navegador foi feita no Chrome disponível no ambiente. Não foram
+executadas matrizes de outros navegadores, testes de toque em aparelho físico,
+contrastes em todos os temas ou medições de desempenho em grandes volumes.
+Os números JavaScript são exclusivos do desenho; preços, taxas, resultados e
+razões de decisão continuam exatos no Python e nas strings do relatório.
+
+Os registros seguintes são históricos e descrevem as apresentações anteriores.
+
+
+## Atualização: eixo de preço fixo e grade de tempo
+
+Em **07/11/2026**, o eixo de preço passou a ser uma camada fixa à esquerda
+durante a rolagem horizontal, com título e valores sempre visíveis. A escala
+compartilha os mesmos limites, altura e coordenadas dos candles. Linhas verticais
+pontilhadas foram alinhadas às marcações de horário, com espaçamento que permite
+acompanhar os candles durante a rolagem. Na impressão, a escala é incorporada
+ao SVG para continuar alinhada quando o gráfico é redimensionado.
+
+Verificações efetivamente executadas em Python 3.12.14:
+
+- `.venv/bin/python -m unittest discover -s tests -v`: código **0**, **70 testes
+  aprovados**. A regressão adicional confere a escala fixa, igualdade de valores
+  e coordenadas com a escala de impressão, e alinhamento das linhas pontilhadas
+  verticais aos horários.
+- `executar` com os arquivos ampliados e `--formato html`: código **0**, HTML
+  atualizado em `/tmp/replayquant-sma-expandido.html`, com artefatos em
+  `/tmp/replayquant-eixo-fixo-ag_8kyix/execucao`.
+- `git diff --check`: código **0**.
+
+Também foi feita verificação real de rolagem no Chrome headless, com uma cópia
+instrumentada do gráfico em `/tmp/replayquant-axis-browser-check.html` (a saída
+normal continua sem JavaScript). Em desktop **1440×1100**, após rolar **1800 px**,
+a posição horizontal do eixo permaneceu **203.5 px** e o gráfico moveu-se
+exatamente 1800 px. Em tela **390×1300**, após rolar **2400 px**, o eixo permaneceu
+em **33 px** e o gráfico moveu-se exatamente 2400 px. Em ambos, a escala SVG foi
+**1:1** e os topos dos SVGs de preço e candles permaneceram alinhados.
+
+As capturas `/tmp/replayquant-axis-desktop.png` e
+`/tmp/replayquant-axis-mobile.png` foram inspecionadas visualmente após a rolagem;
+os preços continuaram visíveis e as linhas verticais acompanharam os horários.
+Os comandos Chrome com `--dump-dom`, `--virtual-time-budget=1000` e `--screenshot`
+retornaram **0**. As medidas foram conferidas por asserts sobre os DOMs gerados.
+Não foi feita inspeção de PDF; o teste estrutural confere a escala de impressão.
+Não houve alteração de dados, sinais, execuções ou resultados financeiros.
+
+
+## Atualização: ganhos, perda e saldo final positivo no cenário sintético
+
+Em **07/11/2026**, a fixture ampliada foi ajustada a pedido do usuário para
+exibir operações com lucro e prejuízo líquidos e terminar com lucro realizado
+positivo. Foram preservados os 240 candles, os parâmetros SMA 9/21, capital,
+quantidade, taxas/slippage e a fixture original de oito candles. O trecho final,
+a partir de 15:27 UTC, recebeu uma reversão de preços sintética controlada,
+com aritmética inteira em centavos e PRNG local de semente 707. Esse desenho
+intencional serve à demonstração visual, sem evidência de rentabilidade real.
+
+Resultados efetivamente observados após taxas e slippage:
+
+| Operação | Compra UTC | Venda UTC | Resultado líquido USDT |
+| --- | --- | --- | --- |
+| 1 | 12:38 | 13:25 | +0.73754871919 |
+| 2 | 14:20 | 15:02 | +0.77489849630 |
+| 3 | 15:26 | 15:39 | -0.61089654715 |
+| Total | — | — | **+0.90155066834** |
+
+Caixa inicial **1000 USDT**, caixa final **1000.90155066834 USDT**, BTC final
+**zero**, nenhuma ordem pendente e taxas totais **0.60339361166 USDT**. O lucro
+reconcilia com a soma dos três pares encerrados e com caixa final menos inicial;
+não depende de marcação ou liquidação fictícia de posição aberta.
+
+O HTML passou a mostrar a soma dos resultados realizados no resumo quando há
+múltiplas operações, além do total abaixo do gráfico. As cores são determinadas
+pelo líquido após taxas. O contrato JSON de `round_trip_result` foi preservado:
+continua indisponível quando há múltiplas idas e voltas. O motor não foi alterado.
+
+Verificações executadas em Python 3.12.14:
+
+- `.venv/bin/python -m unittest discover -s tests -v`: código **0**, **69 testes
+  aprovados**, incluindo uma regressão do cenário com ganho, perda, BTC zero e
+  reconciliação exata do lucro realizado.
+- Duas execuções de `executar` com os arquivos ampliados e `--formato html`:
+  código **0** em ambas, 240 avaliações e seis preenchimentos. `manifest.json`,
+  `events.jsonl` e `report.json` foram comparados byte a byte e coincidiram.
+- `git diff --check`: código **0** após correção de um espaço final.
+
+HTML atualizado em `/tmp/replayquant-sma-expandido.html`; artefatos e registro
+das invocações em `/tmp/replayquant-sma-misto-ab7dw_kc/`. Os registros seguintes
+são históricos e descrevem as versões anteriores do cenário.
+
+
+## Atualização: cenário ampliado de candles
+
+Em **07/11/2026**, foi incluída a fixture adicional
+`data/fixtures/sprint07-candles-expandido.json`, com **240 candles contíguos de 1m**
+entre 12:00 e 16:00 UTC de 01/01/2026. A configuração
+`experiments/sprint07-sma-expandido.json` usa janelas 9/21 e mantém capital 1000,
+quantidade 0.001 BTC e taxa/slippage 0.001. A fixture original de oito candles
+permanece como referência de testes e demonstração manual.
+
+Os candles são sintéticos, com pavios e volume variável, gerados uma vez por
+aritmética inteira em centavos e PRNG local com semente 7. O JSON fixo é a fonte
+versionada do experimento; não representa preços de exchange ou calibração de
+liquidez/volatilidade real. Não houve ajuste de parâmetros para obter lucro.
+
+Validação efetivamente executada em Python 3.12.14:
+
+- Leitura e validação pelo parser do projeto, replay completo e HTML pela CLI:
+  código **0**, 240 avaliações/candles, cinco preenchimentos/marcadores e duas
+  idas e voltas encerradas no gráfico.
+- Caixa final **900.27010585533 USDT**, BTC final **0.001** e taxas acumuladas
+  **0.50266143467 USDT**. O caixa não é patrimônio ou lucro: há posição aberta.
+- Demonstração original SMA em JSON: código **0**, oito candles e conferência
+  automática dos resultados originais aprovada.
+- `git diff --check`: código **0**.
+
+HTML gerado em `/tmp/replayquant-sma-expandido.html`. Artefatos e registro da
+invocação em `/tmp/replayquant-sma-expandido-g3rk988p/`. A suíte anterior não foi reexecutada nesta alteração de
+fixtures/documentação; não houve mudança no código do motor ou do gráfico.
+
+
 ## Atualização: gráfico de candles e resultados líquidos
 
 Em **07/11/2026**, foi adicionado gráfico SVG independente à saída HTML SMA,
