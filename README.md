@@ -1,4 +1,4 @@
-# ReplayQuant — Sprints 06 e 07
+# ReplayQuant — Sprints 06, 07 e 08
 
 Laboratório educacional de replay Spot em Python, com candles fictícios e ordens
 manuais ou sinais SMA de BTC/USDT. Mostra como um relógio simulado transforma solicitações em
@@ -71,7 +71,7 @@ outro nome; nenhum comando apaga resultados anteriores. Estrutura e domínio sã
 antes da simulação e da criação da saída; continuidade no modo SMA é conferida
 progressivamente para preservar o prefixo anterior a uma lacuna.
 
-São produzidos `manifest.json`, `events.jsonl` e `report.json`. O manifesto inclui
+Sem `--analise`, são produzidos `manifest.json`, `events.jsonl` e `report.json`. O manifesto inclui
 hashes SHA-256 dos bytes de entrada e do código, versão Python real, política
 financeira e modelo de execução. `run_id` depende desses conteúdos, sem caminhos
 absolutos, hora real ou metadados Git. O diretório conterá `INCOMPLETE` durante a
@@ -81,8 +81,8 @@ que devem ser preservados para diagnóstico e não representam execução persis
 com sucesso.
 
 `--formato texto|json|html` controla stdout nos dois subcomandos; texto é o padrão.
-O HTML vai somente para stdout e pode ser salvo por redirecionamento. Os três
-artefatos persistidos continuam usando
+O HTML vai somente para stdout e pode ser salvo por redirecionamento. Sem
+`--analise`, os três artefatos persistidos continuam usando
 schema JSON v1 no modo manual e v2 no modo SMA, decimais como strings e datas UTC
 com microssegundos. Campos
 inaplicáveis são `null` acompanhados de motivo. O log registra fases de mercado,
@@ -100,7 +100,8 @@ inesperadas propagam com traceback; não são convertidas em rejeição de ordem
 
 ## Contratos e modelo
 
-Os contratos estão em [Sprint 06](docs/sprint06.md) e [Sprint 07](docs/sprint07.md). Cada candle
+Os contratos estão em [Sprint 06](docs/sprint06.md), [Sprint 07](docs/sprint07.md) e
+[Sprint 08](docs/sprint08.md). Cada candle
 fechado de um minuto tem origem/par/intervalo, início/fim, OHLC, volume base e
 `is_closed=true`. Os arquivos contêm exatamente as chaves documentadas.
 Decimais de entrada usam ponto, sem expoentes/espaços, até 18 dígitos no coeficiente
@@ -163,8 +164,8 @@ Consulte o [planejamento](docs/planejamento.md), o
 [glossário](docs/sprint06-glossario.md) e os
 [resultados de validação](docs/sprint06-validacao.md).
 
-Risco, reservas, ledger completo, dados reais e métricas continuam previstos para
-sprints posteriores. Esta entrega não conecta exchanges nem recomenda operações.
+Risco, reservas operacionais e dados reais continuam previstos para sprints
+posteriores. A Sprint 08 acrescenta ledger, marcação e métricas com `--analise`. Esta entrega não conecta exchanges nem recomenda operações.
 
 
 ## Estratégia SMA — Sprint 07
@@ -322,3 +323,159 @@ ordenada `code_files`, além dos arquivos Python e metadados já definidos. Assi
 alterar o bundle, o controlador ou as licenças também altera `code_hash`/`run_id`.
 O manifesto SMA registra a biblioteca em `frontend_dependencies`; hashes dos
 candles/configuração e resultados financeiros continuam com seus contratos.
+
+
+## Ledger, patrimônio e métricas — Sprint 08
+
+Ative a análise com `--analise`; a estratégia e a configuração continuam sendo
+selecionadas como antes. Sem a flag, formatos e schemas anteriores permanecem.
+
+```bash
+source .venv/bin/activate
+python -m replayquant demonstrar --analise --formato texto
+python -m replayquant demonstrar --analise --formato json
+python -m replayquant demonstrar --analise --formato markdown
+python -m replayquant demonstrar --estrategia sma --analise --formato html > /tmp/replayquant-sprint08.html
+python -m unittest discover -s tests -v
+```
+
+A demonstração manual confere os valores obrigatórios: caixa final **1000.799
+USDT**, realizado **0.799 USDT**, taxas **0.201 USDT**, retorno patrimonial
+**0.0799%** e retorno do trade **0.798201798202%**. O máximo drawdown é
+**0.010090918174%**, a maior duração observada é **60 segundos**, e a exposição
+é **60 de 180 segundos**. A queda da taxa na compra aparece na curva antes da
+valorização; a taxa de venda cria outra queda depois do pico.
+
+O ledger registra saldo inicial e cada preenchimento integral. Caixa e BTC são
+projeções desses movimentos; a base de custo inclui a taxa de compra. Uma venda
+realiza recebimento após taxa menos base de custo. Rejeições, sinais e ordens
+não executadas não criam movimentos financeiros. O núcleo é o mesmo nos modos
+manual/SMA, por arquivo ou pela API incremental.
+
+A análise reconcilia, em cada ponto:
+
+```text
+patrimônio bruto = caixa total + BTC × preço disponível
+patrimônio bruto = capital inicial + realizado + não realizado bruto
+```
+
+A curva inclui INITIAL, OPEN antes do fill, FILL depois do preenchimento e CLOSE.
+A marca de um fill é o open de referência, preservando o impacto do slippage.
+Caixa reservado é zero nesta etapa; reservas não são contadas duas vezes.
+
+**KEEP_OPEN** mantém posição aberta no término. O patrimônio bruto marcado é
+separado do valor líquido hipotético de liquidação, que considera slippage/taxa
+de saída sem enviar ordem, cobrar taxa ou zerar BTC. Com só a compra do exemplo
+e último close 101000, há caixa 899.9, BTC 0.001, realizado zero, não realizado
+0.9, patrimônio 1000.9 e liquidação hipotética 1000.799 USDT. A taxa de saída
+hipotética 0.101 USDT é distinta da taxa 0.1 já paga.
+
+Os relatórios incluem realizado/não realizado, retornos, taxas, impacto de
+slippage, contagens de ganhos/perdas/empates, acerto, expectativa amostral,
+drawdown e sua duração, tempo em posição e referências. Sem trades, acerto e
+expectativa são indisponíveis com `NO_CLOSED_TRADES`; retorno e drawdown zero
+continuam válidos quando há patrimônio e horizonte conhecidos. Os percentuais e
+a expectativa preservam razões exatas e exibem 12 casas com HALF_EVEN, sem
+contaminar a contabilidade ou classificar um lucro pequeno como empate.
+
+As referências são carteiras independentes: **HOLD_USDT** mantém o capital sem
+juros; **BUY_HOLD_BTC** compra na primeira abertura, com os mesmos custos, usando
+quase todo o caixa. Sua quantidade é arredondada para baixo por razão exata ao
+quantum ilustrativo 0.000000000001 BTC. Ele mantém BTC aberto, com patrimônio bruto
+e liquidação hipotética separados. Na fixture manual, termina com patrimônio
+bruto **1008.991008991 USDT** e liquidação hipotética **1007.98201798201 USDT**.
+As exposições diferem da quantidade fixa da estratégia; não somar saldos das
+referências ou interpretar a comparação curta como ranking de investimento.
+
+Para salvar a análise, escolha uma saída nova:
+
+```bash
+analise_sprint08_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint08-candles.json --config experiments/sprint08-manual.json --analise --saida "$analise_sprint08_dir/execucao" --formato json
+python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint07-sma-expandido.json --analise --saida "$analise_sprint08_dir/sma" --formato html > "$analise_sprint08_dir/sma.html"
+```
+
+Com a flag, são produzidos **nove arquivos**: `manifest.json`, `events.jsonl`,
+`report.json`, `ledger.jsonl`, `equity.csv`, `trades.csv`, `metrics.csv`,
+`benchmarks.csv` e `report.md`. Sem a flag, continuam os três arquivos anteriores.
+`markdown` exige `--analise`; combinação inválida retorna 2 antes do replay.
+JSON/JSONL enriquecidos usam schema 3; os schemas de entrada não mudam.
+`round_trip_result` conserva o contrato legado; os novos resultados ficam em
+`analysis.metrics`, `closed_trades` e `open_position`.
+
+O manifesto inclui `analysis_policy: SPRINT08_V1` na identidade canônica, além
+dos hashes de dados/configuração/código e Python real. A flag altera `run_id`;
+diretório de saída e hora real não participam da identidade. Os assets, incluindo
+o controlador das curvas, entram no hash do código. Duas execuções iguais em
+pastas distintas devem coincidir nos nove arquivos byte a byte.
+
+CSV usa UTF-8, vírgula, ponto decimal e linhas LF. Dados indisponíveis são células
+vazias com motivo; sem trades, o arquivo contém apenas cabeçalho. Ordem completa
+das colunas:
+
+`equity.csv`:
+
+```text
+schema_version,run_id,portfolio,point_seq,at,source_event_seq,phase,cash_total,cash_available,cash_reserved,asset_quantity,mark_price,mark_at,mark_reason,cost_basis,realized_pnl,unrealized_pnl,gross_equity,hypothetical_liquidation_equity
+```
+
+`trades.csv`:
+
+```text
+schema_version,run_id,trade_id,lot_id,buy_execution_id,sell_execution_id,buy_at,sell_at,quantity,buy_price,sell_price,buy_gross,sell_gross,buy_fee,sell_fee,cash_outflow,cash_inflow,net_pnl,return_pct,return_numerator,return_denominator,duration_seconds,classification
+```
+
+`metrics.csv`:
+
+```text
+schema_version,run_id,scope,metric,value,unit,reason,numerator,denominator
+```
+
+`benchmarks.csv`:
+
+```text
+schema_version,run_id,portfolio,status,reason,observation_start,observed_until,initial_cash,final_cash,asset_quantity,paid_fees,gross_equity,hypothetical_liquidation_equity,return_pct,return_reason,hypothetical_return_pct,hypothetical_return_reason,time_in_position_seconds,time_in_position_pct
+```
+
+As curvas são ordenadas por carteira STRATEGY/HOLD_USDT/BUY_HOLD_BTC e point_seq;
+trades pela sequência de saída; métricas por nome. O ledger JSONL é ordenado por
+horário, evento de origem, carteira e sequência local. Cada linha identifica
+schema/experimento/carteira; os saldos virtuais nunca se misturam.
+
+O HTML enriquecido mantém os candles SMA e acrescenta três curvas patrimoniais
+com a biblioteca já incorporada, sem CDN. O eixo horizontal representa **índice
+de evento**, com UTC nos detalhes: duas alterações do mesmo horário continuam
+em pontos distintos. Cada carteira tem sua própria sequência; o espaçamento
+visual não representa tempo decorrido. Os valores exatos ficam nas tabelas,
+e a impressão captura os Canvas. JavaScript desabilitado preserva as tabelas.
+
+Interrupção por lacuna SMA gera código 1 e `analysis.scope: ACCEPTED_PREFIX`:
+ledger, pendência e referências param antes da abertura posterior. A última marca
+pertence ao prefixo e não é preço negociável depois da lacuna. No término normal,
+ordem sem abertura futura permanece não executada (código 2). Métrica indefinida
+por ausência de trades não transforma uma execução válida em falha.
+
+API para análise de arquivos, usando o mesmo ledger da sessão:
+
+```python
+from replayquant.data import load_inputs
+from replayquant.engine import replay
+from replayquant.reporting import manifest, report
+
+inputs = load_inputs("data/fixtures/sprint08-candles.json", "experiments/sprint08-manual.json")
+metadata = manifest(inputs, analysis=True)
+session = replay(inputs.candles, inputs.config, metadata["run_id"], inputs.diagnostics)
+summary = report(session, analysis=True)
+ledger = session.ledger  # entradas imutáveis; não altera o estado aceito
+```
+
+O ledger é integrado aos fills em todos os modos. A análise projeta a curva em
+consulta, lendo exclusivamente o ledger comprometido e o prefixo de eventos
+aceitos, sem executar operações de novo. `Session`/`SMASession` progressivas usam
+o mesmo núcleo. `report` valida o encerramento normal ou a interrupção identificada.
+Os formatos e exportações da análise podem ser reconstruídos de `report.json`
+sem reler dados de mercado.
+
+Veja a [validação](docs/sprint08-validacao.md) e o
+[glossário](docs/sprint08-glossario.md). O modelo é fictício, local e sem
+anualização, aportes, reservas operacionais ou liquidação forçada.

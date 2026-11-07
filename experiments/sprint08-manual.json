@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": "FICTICIA",
+  "symbol": "BTCUSDT",
+  "interval": "1m",
+  "initial_cash": "1000",
+  "quantity": "0.001",
+  "fee_rate": "0.001",
+  "slippage_rate": "0",
+  "orders": [
+    {
+      "id": "compra-01",
+      "at_close": "2026-01-01T12:01:00+00:00",
+      "side": "BUY"
+    },
+    {
+      "id": "venda-01",
+      "at_close": "2026-01-01T12:02:00+00:00",
+      "side": "SELL"
+    }
+  ]
+}

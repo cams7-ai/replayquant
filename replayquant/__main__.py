@@ -7,6 +7,21 @@ from .engine import replay
 from .html_report import html_report
 from .reporting import json_text, manifest, report, text_report, write_artifacts
 from .validation import ValidationError
+from .exports import markdown_report
+
+
+def check_manual_analysis(summary):
+    a = summary['analysis']
+    expected = {'portfolio_return_pct': '0.079900000000', 'max_drawdown_pct': '0.010090918174',
+                'time_in_position_pct': '33.333333333333', 'max_drawdown_duration_seconds': '60',
+                'time_in_position_seconds': '60', 'closed_trade_count': '1', 'win_count': '1'}
+    if any(Decimal(str(a['metrics'][key]['value'])) != Decimal(value) for key, value in expected.items()):
+        raise ValidationError('Métricas da demonstração divergentes')
+    hold = a['benchmarks'][1]
+    if (hold['metrics']['final_gross_equity']['value'] != Decimal('1008.991008991')
+            or hold['metrics']['final_hypothetical_liquidation_equity']['value'] != Decimal('1007.98201798201')
+            or len(a['ledger_entries']) != 3):
+        raise ValidationError('Ledger/benchmark da demonstração divergentes')
 
 
 def main(argv=None):
@@ -14,8 +29,9 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("demonstrar", "executar"):
         command = commands.add_parser(name, help="Exemplo manual ou SMA" if name == "demonstrar" else "Replay de arquivos locais")
-        command.add_argument("--formato", choices=("texto", "json", "html"), default="texto",
-                             help="Formato de stdout: texto (padrão), JSON ou HTML independente")
+        command.add_argument("--formato", choices=("texto", "json", "html", "markdown"), default="texto",
+                             help="Formato de stdout: texto (padrão), JSON, HTML ou Markdown com --analise")
+        command.add_argument("--analise", action="store_true", help="Ledger, patrimônio, métricas e referências (Sprint 08)")
         if name == "demonstrar":
             command.add_argument("--estrategia", choices=("sma",), help="Demonstração SMA da Sprint 07")
         if name == "executar":
@@ -23,6 +39,8 @@ def main(argv=None):
             command.add_argument("--config", required=True)
             command.add_argument("--saida", required=True)
     args = parser.parse_args(argv)
+    if args.formato == "markdown" and not args.analise:
+        parser.error("--formato markdown exige --analise")
     try:
         demonstration = args.command == "demonstrar"
         sma_demo = demonstration and args.estrategia == "sma"
@@ -30,9 +48,9 @@ def main(argv=None):
         demo_config = "experiments/sprint07-sma.json" if sma_demo else "experiments/sprint06-manual.json"
         inputs = load_inputs(demo_data if demonstration else args.dados,
                              demo_config if demonstration else args.config)
-        metadata = manifest(inputs)
+        metadata = manifest(inputs, analysis=args.analise)
         session = replay(inputs.candles, inputs.config, metadata["run_id"], inputs.diagnostics)
-        summary = report(session)
+        summary = report(session, analysis=args.analise)
         if sma_demo:
             if not (summary["exit_code"] == 0 and len(summary["evaluations"]) == 8
                     and len(summary["signals"]) == len(summary["decisions"]) == 2
@@ -55,7 +73,20 @@ def main(argv=None):
                 print(f"Diagnóstico: {event.get('order_id', '')} {event.get('reason')}", file=sys.stderr)
             elif event["type"] == "DECISION" and not event["approved"]:
                 print(f"Diagnóstico: {event['signal_id']} {event['reason']}", file=sys.stderr)
-        render = {"texto": text_report, "json": json_text, "html": html_report}
+        if demonstration and args.analise:
+            metrics = summary['analysis']['metrics']
+            expected = Decimal('-0.4') if sma_demo else Decimal('0.799')
+            expected_points = 8*2+2+1 if sma_demo else 9
+            if metrics['realized_pnl']['value'] != expected or len(summary['analysis']['equity_curve']) != expected_points:
+                raise ValidationError('Análise da demonstração divergiu dos resultados obrigatórios')
+            if not sma_demo:
+                check_manual_analysis(summary)
+            else:
+                fills = [p for p in summary['analysis']['equity_curve'] if p['phase'] == 'FILL']
+                if (fills[0]['gross_equity'] != Decimal('999.7999')
+                        or metrics['slippage_impact']['value'] != Decimal('0.2')):
+                    raise ValidationError('Marcação/custos da demonstração SMA divergentes')
+        render = {"texto": text_report, "json": json_text, "html": html_report, "markdown": markdown_report}
         sys.stdout.write(render[args.formato](summary))
         return summary["exit_code"]
     except (ValidationError, OSError, UnicodeError) as exc:

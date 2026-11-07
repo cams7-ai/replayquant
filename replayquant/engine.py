@@ -2,11 +2,11 @@
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import replace
-from decimal import Decimal
 from .data import validate_schedule, validate_series
 from .execution import amounts, make_fill, effective_price, make_sma_fill
 from .models import Candle, Config, Fill, Opening, Order, Request, SMAConfig
-from .portfolio import Balance, after_fill
+from .portfolio import after_fill
+from .ledger import Ledger
 from .strategies import SMACross
 from .validation import ValidationError, financial, identifier
 
@@ -19,8 +19,7 @@ class Session:
             raise ValidationError("Esperado Config")
         self.config = config
         self.run_id = identifier(run_id, "run_id")
-        self._balance = Balance(config.initial_cash)
-        self._fees = Decimal("0")
+        self._ledger = Ledger.initial(config.initial_cash, run_id)
         self._orders = {}
         self._fills = {}
         self._events = []
@@ -31,11 +30,15 @@ class Session:
 
     @property
     def balance(self):
-        return self._balance
+        return self._ledger.balance
 
     @property
     def fees(self):
-        return self._fees
+        return self._ledger.fees
+
+    @property
+    def ledger(self):
+        return self._ledger
 
     @property
     def orders(self):
@@ -75,6 +78,8 @@ class Session:
                 raise ValidationError("Fechar candle anterior antes de abrir outro")
             if opening.at != self._closed.close_time:
                 raise ValidationError("Abertura fora de ordem ou com lacuna")
+        if self._ledger.entries[0].at is None:
+            self._ledger = self._ledger.start(opening.at)
         self._opening = opening
         self._emit(opening.at, "OPEN", source=opening.source, symbol=opening.symbol,
                    interval=opening.interval, price=opening.price)
@@ -153,10 +158,9 @@ class Session:
             return None
         before = self.balance
         after = after_fill(before, fill)
-        total_fees = self._fees + fill.fee
+        prepared = self._ledger.prepare(fill, self._opening.price, len(self._events) + 1, after)
         # Commit de todos os efeitos somente após os cálculos e verificações.
-        self._balance = after
-        self._fees = total_fees
+        self._ledger = prepared
         self._fills[fill.id] = fill
         self._orders[order.request.id] = replace(order, status="FILLED")
         self._pending = None

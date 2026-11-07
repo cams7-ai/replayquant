@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "candles": [
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:00:00+00:00",
+      "close_time": "2026-01-01T12:01:00+00:00",
+      "open": "100000",
+      "high": "100000",
+      "low": "100000",
+      "close": "100000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:01:00+00:00",
+      "close_time": "2026-01-01T12:02:00+00:00",
+      "open": "100000",
+      "high": "101000",
+      "low": "100000",
+      "close": "101000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:02:00+00:00",
+      "close_time": "2026-01-01T12:03:00+00:00",
+      "open": "101000",
+      "high": "101000",
+      "low": "101000",
+      "close": "101000",
+      "volume": "1",
+      "is_closed": true
+    }
+  ]
+}

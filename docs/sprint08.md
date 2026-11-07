@@ -4,7 +4,7 @@
 **Nível:** básico  
 **Referência:** [Planejamento](planejamento.md), especialmente seções 4, 8, 21 e 23  
 **Pré-requisitos:** [Sprint 06](sprint06.md), [Sprint 07](sprint07.md) e seus registros de [validação inicial](sprint06-validacao.md) e [validação SMA](sprint07-validacao.md)  
-**Estado:** especificação para implementação; criar este documento não conclui a Sprint 08.
+**Estado:** especificação preservada como referência; implementação e verificações registradas em [sprint08-validacao.md](sprint08-validacao.md).
 
 ## 1. Objetivo e ponto de partida
 

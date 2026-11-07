@@ -8,6 +8,7 @@ from pathlib import Path
 import platform
 from . import __version__
 from .models import SMAConfig
+from .analysis import analyze, analysis_flag, POLICY
 from .validation import ValidationError, financial
 
 
@@ -35,7 +36,8 @@ def json_text(value):
     return json.dumps(wire(value), indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False) + "\n"
 
 
-def manifest(inputs):
+def manifest(inputs, analysis=False):
+    analysis_flag(analysis)
     root = Path(__file__).resolve().parent.parent
     paths = sorted([p.relative_to(root).as_posix() for p in (root / "replayquant").rglob("*.py")]
                    + [p.relative_to(root).as_posix() for p in (root / "replayquant/assets").rglob("*") if p.is_file()]
@@ -45,6 +47,8 @@ def manifest(inputs):
     identity = {"data_hash": inputs.data_hash, "config_hash": inputs.config_hash,
                 "code_hash": sha256(canonical(code_files)).hexdigest(),
                 "python_version": platform.python_version()}
+    if analysis:
+        identity["analysis_policy"] = POLICY
     metadata = {"schema_version": 1, "run_id": sha256(canonical(identity)).hexdigest(),
             **identity, "code_files": code_files, "package_version": __version__,
             "dependencies": [], "decimal_policy": {"precision": 40, "rounding": "ROUND_HALF_EVEN",
@@ -59,11 +63,22 @@ def manifest(inputs):
                         warmup_candles=inputs.config.strategy.long_window + 1,
                         temporal_policy="CLOSE_EVALUATE_DECIDE_OPEN_FILL_ZERO_LATENCY",
                         gap_policy="INTERRUPT_PRESERVE_STATE")
+    if analysis:
+        metadata.update(schema_version=3, input_config_schema_version=2 if isinstance(inputs.config, SMAConfig) else 1,
+                        simulation_mode='SMA' if isinstance(inputs.config, SMAConfig) else 'MANUAL',
+                        analysis_policy=POLICY, sampling_policy='INITIAL_OPEN_BEFORE_FILL_FILL_AFTER_CLOSE',
+                        rounding_policy={'ratio_decimal_places': 12, 'rounding': 'ROUND_HALF_EVEN'},
+                        frontend_dependencies=[{'name': 'lightweight-charts', 'version': '5.2.0', 'license': 'Apache-2.0', 'bundled': True}],
+                        position_at_end='KEEP_OPEN', benchmark_quantity_quantum='0.000000000001',
+                        benchmarks=['HOLD_USDT', 'BUY_HOLD_BTC'], no_cash_flows=True,
+                        observation_start=inputs.candles[0].open_time,
+                        coverage_policy='ACCEPTED_PREFIX_ON_GAP')
     return metadata
 
 
 @financial
-def report(session):
+def report(session, analysis=False):
+    analysis_flag(analysis)
     sma = isinstance(session.config, SMAConfig)
     interrupted = sma and session.status == "INTERRUPTED"
     if not session.finished and not interrupted:
@@ -120,6 +135,12 @@ def report(session):
             "Sem reservas, execução parcial, marcação a mercado ou liquidação forçada.",
             "Latência zero entre eventos ordenados; disponibilidade completa assumida no fechamento.",
             "USDT não é o próprio dólar; taxas cobradas em USDT."]
+    if analysis:
+        summary.update(schema_version=3, input_config_schema_version=2 if sma else 1,
+                       simulation_mode='SMA' if sma else 'MANUAL', status='INTERRUPTED' if interrupted else 'COMPLETED',
+                       analysis=analyze(session))
+        summary['limitations'] = [line.replace('marcação a mercado ou liquidação forçada', 'liquidação forçada') for line in summary['limitations']]
+        summary['limitations'].append('Patrimônio bruto marcado separado de liquidação hipotética; sem anualização ou aportes.')
     return summary
 
 
@@ -130,6 +151,9 @@ def ratio_text(value):
 
 
 def text_report(value):
+    if value.get('schema_version') == 3:
+        from .exports import analysis_markdown
+        return f"ReplayQuant — Sprint 08\nExecução: {value['run_id']}\n" + analysis_markdown(value)
     value = wire(value)
     lines = ["ReplayQuant — Sprint 07" if value["schema_version"] == 2 else "ReplayQuant — Sprint 06", f"Execução: {value['run_id']}",
              f"Caixa inicial: {value['initial_cash']} USDT"]
@@ -179,14 +203,20 @@ def text_report(value):
 
 
 def write_artifacts(directory, metadata, session, summary):
+    from .exports import analysis_files
+    enriched = summary.get('schema_version') == 3
+    events = [{**e, 'schema_version': 3} for e in session.events] if enriched else session.events
+    contents = analysis_files(summary) if enriched else {}
+    contents.update({'events.jsonl': ''.join(canonical(e).decode('utf-8') + '\n' for e in events),
+                     'report.json': json_text(summary)})
+    # Manifesto é inserido por último, inclusive no modo enriquecido.
+    contents['manifest.json'] = json_text(metadata)
     target = Path(directory)
     # mkdir exclusivo também recusa symlink ou arquivo existente.
     target.mkdir(parents=True, exist_ok=False)
     marker = target / "INCOMPLETE"
     marker.write_text("Gravação incompleta: não consumir esta execução.\n", encoding="utf-8")
     # Manifesto é o último artefato; o marcador só some ao concluir tudo.
-    contents = {"events.jsonl": "".join(canonical(e).decode("utf-8") + "\n" for e in session.events),
-                "report.json": json_text(summary), "manifest.json": json_text(metadata)}
     for name, content in contents.items():
         temporary = target / (name + ".tmp")
         with temporary.open("x", encoding="utf-8", newline="\n") as stream:

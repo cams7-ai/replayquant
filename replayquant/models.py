@@ -173,7 +173,7 @@ class Fill:
         identifier(self.id)
         identifier(self.order_id, "order_id")
         side_value(self.side)
-        decimal_value(self.quantity, "quantity", positive=True)
+        decimal_value(self.quantity, "quantity", positive=True, bounded=False)
         decimal_value(self.price, "price", positive=True, bounded=False)
         decimal_value(self.fee, "fee", bounded=False)
         object.__setattr__(self, "at", utc(self.at))

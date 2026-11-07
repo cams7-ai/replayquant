@@ -2,6 +2,7 @@
 from html import escape
 from fractions import Fraction
 
+from .html_analysis import analysis_html
 from .html_chart import candle_chart, outcome, closed_trades, exact_text
 
 from .reporting import wire, ratio_text
@@ -29,8 +30,8 @@ nav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}a{color:var(--accent
 .gain{color:#14794e}.loss{color:#bd2636}.neutral{color:#546779}.buy{color:#2563eb}
 .candle-chart{width:100%;height:470px;min-width:0}
 .chart-controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chart-controls[hidden]{display:none}
-.chart-controls button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 12px;color:var(--accent);cursor:pointer;font:inherit}
-.chart-controls button:hover,.chart-controls button:focus-visible{background:#e8f5f5;outline:2px solid var(--accent);outline-offset:1px}
+.chart-controls button,.equity-fit{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 12px;color:var(--accent);cursor:pointer;font:inherit}
+.chart-controls button:hover,.chart-controls button:focus-visible,.equity-fit:hover,.equity-fit:focus-visible{background:#e8f5f5;outline:2px solid var(--accent);outline-offset:1px}
 .chart-axis-title,.chart-attribution{font-size:12px;color:var(--muted)}
 .chart-readout{font:12px/1.6 ui-monospace,monospace;white-space:pre-line;min-height:42px;overflow-wrap:anywhere}
 .chart-licenses{font-size:12px;color:var(--muted)}.chart-licenses pre{white-space:pre-wrap;overflow-wrap:anywhere}
@@ -39,6 +40,8 @@ nav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}a{color:var(--accent
 .trade-result{border-left:3px solid currentColor;padding:10px 14px;background:#f8fafc;overflow-wrap:anywhere}
 @media print{.candle-chart,.chart-controls,.chart-readout,#chart-help,.chart-licenses{display:none!important}.chart-print-image{display:block;width:100%;height:auto}}
 
+.equity-chart{height:300px;width:100%;min-width:0}.equity-panel{margin:24px 0}.equity-print{display:none}
+@media print{.equity-chart,.equity-readout,.equity-fit{display:none!important}.equity-print{display:block;width:100%;height:auto}.equity-print:not([src]){display:none}}
 footer{border-top:1px solid var(--line);padding-top:20px;font-size:12px;color:var(--muted)}
 @media(max-width:720px){main{padding:24px 16px}h1{font-size:30px}.panel{padding:16px}.table-wrap table{min-width:680px}}
 @media print{@page{size:A4 landscape;margin:14mm}body{background:white;font-size:11px}main{max-width:none;padding:0}nav{display:none}h1{font-size:28px}.panel{border-radius:0;padding:16px}.table-wrap{overflow:visible}.table-wrap table{font-size:10px;min-width:0}.table-wrap tr,.kpi,.calculation{break-inside:avoid}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}}
@@ -70,7 +73,8 @@ def html_report(value):
     value = wire(value)
     balance = value["final_balance"]
     complete = value["exit_code"] == 0
-    sma = value["schema_version"] == 2
+    enriched = value["schema_version"] == 3
+    sma = value["schema_version"] == 2 or value.get("simulation_mode") == "SMA"
     interrupted = value.get("status") == "INTERRUPTED"
     state = ("Replay interrompido — relatório parcial" if interrupted else
              ("Replay concluído" if complete else "Replay concluído com bloqueios ou ordens rejeitadas ou não executadas"))
@@ -80,11 +84,15 @@ def html_report(value):
     display_result = sum((t['net'] for t in trades), Fraction()) if multiple_closed else result
     result_class = outcome(Fraction(display_result)) if sma and display_result is not None else ''
     result_heading = 'Resultado líquido das operações encerradas' if multiple_closed else 'Resultado líquido da ida e volta'
+    if enriched:
+        display_result = value['analysis']['metrics']['realized_pnl']['value']
+        result_class = outcome(Fraction(display_result))
+        result_heading = 'Resultado realizado das operações encerradas'
     parts = ['<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">',
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<title>ReplayQuant | Relatório de replay Spot</title>',
              f'<style>{CSS}</style></head><body><main>',
-             f'<header><div class="eyebrow">ReplayQuant / Sprint {"07" if sma else "06"}</div>',
+             f'<header><div class="eyebrow">ReplayQuant / Sprint {"08" if enriched else ("07" if sma else "06")}</div>',
              '<h1>Relatório de replay Spot</h1>',
              '<p class="muted">Ordens, preenchimentos e memória de cálculo de BTC/USDT.</p>',
              f'<p class="muted">Dados fictícios · {"Estratégia SMA" if sma else "Ordens manuais"} · Horários em UTC</p>',
@@ -94,6 +102,7 @@ def html_report(value):
              f'<p class="muted">Código de saída: {safe(value["exit_code"])}</p></header>',
              '<nav aria-label="Seções do relatório"><a href="#resumo">Resumo</a>'
              + ('<a href="#grafico">Gráfico</a>' if sma else '')
+             + ('<a href="#analise">Patrimônio e métricas</a>' if enriched else '')
              + '<a href="#ordens">Ordens</a><a href="#execucoes">Preenchimentos</a>'
              '<a href="#calculos">Memória de cálculo</a><a href="#limites">Limitações</a></nav>',
              '<section id="resumo"><h2>Resumo financeiro</h2><div class="kpis">']
@@ -109,15 +118,19 @@ def html_report(value):
         parts.append(f'<p>Indisponível ({safe(value["round_trip_reason"])}). '
                      'Exige exatamente uma compra seguida de uma venda integral e posição final zero.</p>')
     else:
-        displayed = exact_text(display_result) if multiple_closed else result
+        displayed = exact_text(display_result) if multiple_closed else display_result
         explanation = ('Soma dos resultados realizados, com taxas de compra e venda; '
                        'posições abertas não entram nesse valor.' if multiple_closed else
                        'Recebimento da venda − desembolso da compra.')
         parts.append(f'<p class="{result_class}">{number(displayed, "USDT")}</p><p>{explanation}</p>')
-    parts.append('<p>Os saldos e custos descrevem a mecânica do replay; não avaliam uma estratégia. '
-                 'Posições abertas não são marcadas a mercado nem liquidadas automaticamente.</p></aside></section>')
+    parts.append('<p>Os saldos e custos descrevem a mecânica do replay; não avaliam uma estratégia. ' +
+                 ('Posições abertas são marcadas a mercado; a liquidação permanece hipotética.' if enriched else
+                  'Posições abertas não são marcadas a mercado nem liquidadas automaticamente.') + '</p></aside></section>')
     if sma:
         parts.append(candle_chart(value))
+    if enriched:
+        parts.append(analysis_html(value, library_loaded=sma and bool(value.get("candles"))))
+    if sma:
         parts.append('<section class="panel"><h2>Estratégia SMA e causalidade</h2>')
         parts.append(f'<p>Estado: {safe(value["status"])} · Pendência: {safe(value["pending_order_id"] or "nenhuma")}</p>')
         if value["diagnostic"]:
