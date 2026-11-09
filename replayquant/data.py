@@ -3,6 +3,7 @@ from dataclasses import dataclass, fields as dataclass_fields
 from hashlib import sha256
 from pathlib import Path
 from .models import Candle, Config, Request, SMAConfig, SMAParameters
+from .risk_models import RiskConfig, RiskRequest, InstrumentFilters, RiskParameters
 from .validation import ValidationError, fields, version, strict_json, decimal_text, datetime_text
 
 
@@ -61,6 +62,8 @@ def parse_config(raw):
     envelope = strict_json(raw)
     if type(envelope) is not dict or type(envelope.get("schema_version")) is not int:
         raise ValidationError("schema_version exige inteiro 1 ou 2")
+    if envelope["schema_version"] == 4:
+        return parse_risk_config(envelope)
     if envelope["schema_version"] == 2:
         names = {f.name for f in dataclass_fields(SMAConfig)}
         fields(envelope, names | {"schema_version"}, "configuração SMA")
@@ -100,8 +103,43 @@ def load_inputs(data_path, config_path):
     data_raw = Path(data_path).read_bytes()
     config_raw = Path(config_path).read_bytes()
     config = parse_config(config_raw)
-    candles, diagnostics = parse_candles(data_raw, contiguous=not isinstance(config, SMAConfig))
+    candles, diagnostics = parse_candles(data_raw, contiguous=not (isinstance(config, SMAConfig) or (isinstance(config, RiskConfig) and config.mode == 'SMA')))
+    if isinstance(config, RiskConfig) and config.mode == 'MANUAL':
+        closes = {c.close_time for c in candles}
+        if any(r.at_close not in closes for r in config.orders):
+            raise ValidationError('Ação deve referenciar fechamento existente')
     if isinstance(config, Config):
         validate_schedule(candles, config)
     return Inputs(candles, config, diagnostics, sha256(data_raw).hexdigest(),
                   sha256(config_raw).hexdigest())
+
+
+def parse_risk_config(envelope):
+    mode = envelope.get('mode')
+    if mode not in ('MANUAL', 'SMA'):
+        raise ValidationError('mode exige MANUAL ou SMA')
+    names = {'schema_version','mode','source','symbol','interval','initial_cash','fee_rate',
+             'slippage_rate','instrument_filters','risk', 'orders' if mode == 'MANUAL' else 'strategy'}
+    fields(envelope, names, 'configuração de risco')
+    values = {name: envelope[name] for name in names if name != 'schema_version'}
+    for name in ('initial_cash', 'fee_rate', 'slippage_rate'):
+        values[name] = decimal_text(values[name], name)
+    for name, model in (('instrument_filters', InstrumentFilters), ('risk', RiskParameters)):
+        keys = {f.name for f in dataclass_fields(model)}
+        fields(values[name], keys, name)
+        values[name] = model(**{k: decimal_text(v,k) for k,v in values[name].items()})
+    if mode == 'SMA':
+        fields(values['strategy'], {'name','short_window','long_window'}, 'strategy')
+        values['strategy'] = SMAParameters(**values['strategy'])
+    else:
+        if type(values['orders']) is not list:
+            raise ValidationError('orders exige lista')
+        orders = []
+        for item in values['orders']:
+            cancel = isinstance(item, dict) and item.get('side') == 'CANCEL'
+            keys = {'id','at_close','side'} | ({'target_order_id'} if cancel else set())
+            fields(item, keys, 'ação')
+            orders.append(RiskRequest(item['id'], datetime_text(item['at_close'],'at_close'),
+                                      item['side'], item.get('target_order_id')))
+        values['orders'] = tuple(orders)
+    return RiskConfig(**values)

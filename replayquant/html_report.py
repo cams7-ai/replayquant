@@ -14,7 +14,7 @@ CSS = """
 main{max-width:1120px;margin:auto;padding:44px 28px}header{border-top:5px solid var(--accent);padding:28px 0}
 .eyebrow{font-size:12px;font-weight:750;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
 h1{font-size:38px;letter-spacing:-.04em;line-height:1.15;margin:12px 0}h2{font-size:24px;margin:0 0 16px}
-h3{font-size:18px;margin:0 0 12px}p{margin:8px 0}.muted,small{color:var(--muted)}
+h3{font-size:18px;margin:0 0 12px}p{margin:8px 0;overflow-wrap:anywhere}.muted,small{color:var(--muted)}
 .identity{overflow-wrap:anywhere;font-family:ui-monospace,monospace;font-size:12px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:24px 0}
 .kpi,.panel{background:white;border:1px solid var(--line);border-radius:10px;padding:22px}
@@ -40,6 +40,10 @@ nav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}a{color:var(--accent
 .trade-result{border-left:3px solid currentColor;padding:10px 14px;background:#f8fafc;overflow-wrap:anywhere}
 @media print{.candle-chart,.chart-controls,.chart-readout,#chart-help,.chart-licenses{display:none!important}.chart-print-image{display:block;width:100%;height:auto}}
 
+.risk-panel .table-wrap table{min-width:1200px}
+.risk-panel .table-wrap td{white-space:nowrap;overflow-wrap:normal}
+.risk-panel h3{margin-top:22px}
+@media print{.risk-panel .table-wrap table{min-width:0;table-layout:fixed}.risk-panel .table-wrap td{white-space:normal;overflow-wrap:anywhere}}
 .equity-chart{height:300px;width:100%;min-width:0}.equity-panel{margin:24px 0}.equity-print{display:none}
 @media print{.equity-chart,.equity-readout,.equity-fit{display:none!important}.equity-print{display:block;width:100%;height:auto}.equity-print:not([src]){display:none}}
 footer{border-top:1px solid var(--line);padding-top:20px;font-size:12px;color:var(--muted)}
@@ -73,7 +77,8 @@ def html_report(value):
     value = wire(value)
     balance = value["final_balance"]
     complete = value["exit_code"] == 0
-    enriched = value["schema_version"] == 3
+    risk = value["schema_version"] == 4
+    enriched = value["schema_version"] in (3,4)
     sma = value["schema_version"] == 2 or value.get("simulation_mode") == "SMA"
     interrupted = value.get("status") == "INTERRUPTED"
     state = ("Replay interrompido — relatório parcial" if interrupted else
@@ -92,7 +97,7 @@ def html_report(value):
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<title>ReplayQuant | Relatório de replay Spot</title>',
              f'<style>{CSS}</style></head><body><main>',
-             f'<header><div class="eyebrow">ReplayQuant / Sprint {"08" if enriched else ("07" if sma else "06")}</div>',
+             f'<header><div class="eyebrow">ReplayQuant / Sprint {"09" if risk else ("08" if enriched else ("07" if sma else "06"))}</div>',
              '<h1>Relatório de replay Spot</h1>',
              '<p class="muted">Ordens, preenchimentos e memória de cálculo de BTC/USDT.</p>',
              f'<p class="muted">Dados fictícios · {"Estratégia SMA" if sma else "Ordens manuais"} · Horários em UTC</p>',
@@ -126,10 +131,10 @@ def html_report(value):
     parts.append('<p>Os saldos e custos descrevem a mecânica do replay; não avaliam uma estratégia. ' +
                  ('Posições abertas são marcadas a mercado; a liquidação permanece hipotética.' if enriched else
                   'Posições abertas não são marcadas a mercado nem liquidadas automaticamente.') + '</p></aside></section>')
-    if sma:
+    if sma or risk:
         parts.append(candle_chart(value))
     if enriched:
-        parts.append(analysis_html(value, library_loaded=sma and bool(value.get("candles"))))
+        parts.append(analysis_html(value, library_loaded=(sma or risk) and bool(value.get("candles"))))
     if sma:
         parts.append('<section class="panel"><h2>Estratégia SMA e causalidade</h2>')
         parts.append(f'<p>Estado: {safe(value["status"])} · Pendência: {safe(value["pending_order_id"] or "nenhuma")}</p>')
@@ -194,6 +199,9 @@ def html_report(value):
         parts.append(f'<aside class="note"><p>Resultado líquido = recebimento da venda − desembolso da compra</p>'
                      f'<p class="formula">{number(sell["cash_amount"], "USDT")} − '
                      f'{number(buy["cash_amount"], "USDT")} = {number(result, "USDT")}</p></aside>')
+    if risk:
+        from .risk_reporting import risk_html
+        parts.append(risk_html(value))
     parts.append('</section><section class="panel" id="limites"><h2>Premissas e limitações</h2><ul>')
     parts.extend(f'<li>{safe(item)}</li>' for item in value["limitations"])
     parts.append('</ul></section><footer>ReplayQuant · Relatório local e independente de conexão à internet. '

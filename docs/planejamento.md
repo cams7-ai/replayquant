@@ -6,7 +6,7 @@
 **Mercado inicial:** criptomoedas Spot, posições compradas, sem alavancagem  
 **Evolução:** `sprint06.md` até `sprint20.md`  
 **Natureza:** projeto educacional com práticas de engenharia e pesquisa quantitativa  
-**Estado deste documento:** planejamento incremental; as Sprints 06, 07 e 08 possuem implementação e validação registradas em [sprint06-validacao.md](sprint06-validacao.md), [sprint07-validacao.md](sprint07-validacao.md) e [sprint08-validacao.md](sprint08-validacao.md). As demais sprints continuam previstas.
+**Estado deste documento:** planejamento incremental; as Sprints 06, 07, 08 e 09 possuem implementação e validação registradas em [sprint06-validacao.md](sprint06-validacao.md), [sprint07-validacao.md](sprint07-validacao.md), [sprint08-validacao.md](sprint08-validacao.md) e [sprint09-validacao.md](sprint09-validacao.md). As demais sprints continuam previstas.
 
 ## 1. Objetivo e resultado final
 
@@ -358,7 +358,7 @@ Os prompts serão produzidos junto com os respectivos documentos de sprint, ante
 - Não realizar negociação real, publicação ou alterações externas sem solicitação.
 - O roteiro de validação deverá ser atualizado após a execução, separando resultados esperados dos efetivamente observados.
 
-Este planejamento estabelece o requisito para todas as quinze sprints. A especificação da Sprint 06 e seu **Prompt autossuficiente de execução** estão em [sprint06.md](sprint06.md). A especificação e o prompt da Sprint 07 estão em [sprint07.md](sprint07.md), com execução registrada em [sprint07-validacao.md](sprint07-validacao.md). A especificação e o prompt da Sprint 08 estão em [sprint08.md](sprint08.md), com execução registrada em [sprint08-validacao.md](sprint08-validacao.md). Os documentos seguintes continuam previstos; o próximo será **`sprint09.md`**, antes de iniciar sua implementação.
+Este planejamento estabelece o requisito para todas as quinze sprints. A especificação da Sprint 06 e seu **Prompt autossuficiente de execução** estão em [sprint06.md](sprint06.md). A especificação e o prompt da Sprint 07 estão em [sprint07.md](sprint07.md), com execução registrada em [sprint07-validacao.md](sprint07-validacao.md). A especificação e o prompt da Sprint 08 estão em [sprint08.md](sprint08.md), com execução registrada em [sprint08-validacao.md](sprint08-validacao.md). A especificação e o prompt da Sprint 09 estão em [sprint09.md](sprint09.md), com execução registrada em [sprint09-validacao.md](sprint09-validacao.md). Os documentos seguintes continuam previstos; o próximo será **`sprint10.md`**, antes de iniciar sua implementação.
 
 ## 24. Riscos de interpretação e limites
 

@@ -26,7 +26,7 @@ def make_fill(request: Request, opening: Opening, quantity: Decimal, fee_rate: D
 @financial
 def effective_price(reference, side, slippage_rate):
     side_value(side)
-    decimal_value(reference, "reference", positive=True)
+    decimal_value(reference, "reference", positive=True, bounded=False)
     decimal_value(slippage_rate, "slippage_rate")
     if slippage_rate >= 1:
         raise ValidationError("Slippage exige [0, 1)")

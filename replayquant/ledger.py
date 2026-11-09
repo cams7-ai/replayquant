@@ -38,7 +38,7 @@ class Entry:
 
 
     def __post_init__(self):
-        if type(self.schema_version) is not int or self.schema_version != 3 or (type(self.portfolio) is not str or self.portfolio not in PORTFOLIOS):
+        if type(self.schema_version) is not int or self.schema_version not in (3, 4) or (type(self.portfolio) is not str or self.portfolio not in PORTFOLIOS):
             raise ValidationError('Versão/carteira do ledger inválida')
         identifier(self.run_id, 'run_id')
         identifier(self.ledger_id, 'ledger_id')
@@ -159,7 +159,7 @@ class Ledger:
     def prepare(self, fill, reference_price, source_event_seq, expected_balance=None):
         if not isinstance(fill, Fill):
             raise ValidationError('Ledger exige Fill')
-        decimal_value(reference_price, 'reference_price', positive=True)
+        decimal_value(reference_price, 'reference_price', positive=True, bounded=False)
         integer(source_event_seq, 'source_event_seq', 1)
         for row in self.entries:
             if row.execution_id == fill.id:

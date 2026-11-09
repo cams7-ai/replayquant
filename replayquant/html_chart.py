@@ -60,13 +60,16 @@ def chart_data(value):
     """Strings exatas até a fronteira JS; inclui somente candles já processados."""
     trades = closed_trades(value)
     results = {t['sell']['id']: t for t in trades}
+    execution_details = {g['exit_details']['order_id']: g['exit_details']
+                         for g in value.get('risk', {}).get('protection_groups', []) if g['exit_details']}
     executions = []
     for fill in value['fills']:
         trade = results.get(fill['id'])
         executions.append({**fill, 'time': unix_time(fill['at']),
                            'classification': 'buy' if fill['side'] == 'BUY' else
                            (outcome(trade['net']) if trade else 'neutral'),
-                           'net': exact_text(trade['net']) if trade else None})
+                           'net': exact_text(trade['net']) if trade else None,
+                           'execution_time_model': execution_details.get(fill['order_id'], {}).get('execution_time_model', 'OPEN_EVENT')})
     return {'candles': [{**c, 'time': unix_time(c['open_time'])} for c in value.get('candles', [])],
             'executions': executions,
             'trades': [{'buy_time': unix_time(t['buy']['at']), 'sell_time': unix_time(t['sell']['at']),

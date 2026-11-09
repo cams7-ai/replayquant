@@ -5,6 +5,7 @@ from dataclasses import replace
 from .data import validate_schedule, validate_series
 from .execution import amounts, make_fill, effective_price, make_sma_fill
 from .models import Candle, Config, Fill, Opening, Order, Request, SMAConfig
+from .risk_models import RiskConfig
 from .portfolio import after_fill
 from .ledger import Ledger
 from .strategies import SMACross
@@ -15,8 +16,10 @@ class Session:
     """Estado local; consultas retornam snapshots, mutações passam pelos eventos."""
 
     def __init__(self, config: Config, run_id: str):
-        if not isinstance(config, (Config, SMAConfig)):
+        if not isinstance(config, (Config, SMAConfig, RiskConfig)):
             raise ValidationError("Esperado Config")
+        if isinstance(config, RiskConfig) and type(self) is Session:
+            raise ValidationError('Configuração de risco exige RiskSession ou replay')
         self.config = config
         self.run_id = identifier(run_id, "run_id")
         self._ledger = Ledger.initial(config.initial_cash, run_id)
@@ -195,6 +198,9 @@ def _add(a, b):
 
 
 def replay(candles, config, run_id="api", diagnostics=()):
+    if isinstance(config, RiskConfig):
+        from .risk_engine import replay_risk
+        return replay_risk(candles, config, run_id, diagnostics)
     if isinstance(config, SMAConfig):
         return replay_sma(candles, config, run_id, diagnostics)
     validated, duplicate_diagnostics = validate_series(candles)

@@ -75,7 +75,7 @@ def analysis_markdown(summary):
                         b['metrics'].get('portfolio_return_pct', {}).get('value', '—'),
                         b['metrics'].get('paid_fees', {}).get('value', '—'), b['metrics'].get('time_in_position_pct', {}).get('value', '—'), b['reason'] or '—') for b in a['benchmarks'])),
              '', '## Memória de cálculo e reconciliação', '', f"Capital inicial: {value['initial_cash']} USDT.", '',
-             f"Taxa fracionária: {a['execution_cost_policy']['fee_rate']}; slippage: {a['execution_cost_policy']['slippage_rate']}; quantidade fixa: {a['execution_cost_policy']['strategy_quantity']} BTC.", '',
+             f"Taxa fracionária: {a['execution_cost_policy']['fee_rate']}; slippage: {a['execution_cost_policy']['slippage_rate']}; quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] != 4 else 'variável por risco'} BTC.", '',
              f"Reconciliação: {a['reconciliation']['status']}; caixa reconstruído {a['reconciliation']['reconstructed_cash']} USDT; "
              f"BTC reconstruído {a['reconciliation']['reconstructed_asset']}.", '',
              md_table(['Ponto', 'UTC', 'Fase', 'Caixa USDT', 'BTC', 'Marca USDT/BTC', 'Base USDT', 'Realizado USDT', 'Não realizado USDT', 'Patrimônio USDT', 'Liquidação hipotética USDT'],
@@ -103,13 +103,16 @@ def analysis_markdown(summary):
         if b.get('open_position'):
             pos = b['open_position']
             lines.append(f"Base {pos['cost_basis']} USDT; taxa de saída hipotética {pos['hypothetical_exit_fee']} USDT (não paga).")
-    lines.extend(['', '## Fórmulas e limites', ''] + [f'- {formula}' for formula in FORMULAS])
+    lines.extend(['', '## Fórmulas e limites', ''] + [f'- {formula}' for formula in analysis_formulas(value)])
     return '\n'.join(lines) + '\n'
 
 
 def markdown_report(summary):
-    if summary.get('schema_version') != 3:
+    if summary.get('schema_version') not in (3,4):
         raise ValidationError('Markdown exige --analise')
+    if summary['schema_version'] == 4:
+        from .risk_reporting import risk_markdown
+        return f"# ReplayQuant — Sprint 09\n\nExecução: {cell(summary['run_id'])}\n\n" + analysis_markdown(summary) + "\n" + risk_markdown(summary)
     return f"# ReplayQuant — Sprint 08\n\nExecução: {cell(summary['run_id'])}\n\n" + analysis_markdown(summary)
 
 
@@ -124,7 +127,7 @@ def csv_text(headers, rows):
 
 def analysis_files(summary):
     a = summary['analysis']
-    base = dict(schema_version=3, run_id=summary['run_id'])
+    base = dict(schema_version=summary['schema_version'], run_id=summary['run_id'])
     ledgers = list(a['ledger_entries'])
     curves = list(a['equity_curve'])
     benchmark_rows = []
@@ -146,9 +149,20 @@ def analysis_files(summary):
     trades = [{**base, **t, 'return_pct': t['return_pct']['value'],
                'return_numerator': t['return_pct']['numerator'], 'return_denominator': t['return_pct']['denominator']} for t in a['closed_trades']]
     metrics = [{**base, 'scope': a['scope'], 'metric': name, **value} for name, value in sorted(a['metrics'].items())]
-    return {'ledger.jsonl': ''.join(canonical(e).decode('utf-8') + '\n' for e in ledgers),
-            'equity.csv': csv_text(HEADERS['equity.csv'], curves),
+    files = {'ledger.jsonl': ''.join(canonical(e).decode('utf-8') + '\n' for e in ledgers),
+            'equity.csv': csv_text(HEADERS['equity.csv'] + (['asset_available','asset_reserved'] if summary['schema_version'] == 4 else []), curves),
             'trades.csv': csv_text(HEADERS['trades.csv'], trades),
             'metrics.csv': csv_text(HEADERS['metrics.csv'], metrics),
             'benchmarks.csv': csv_text(HEADERS['benchmarks.csv'], benchmark_rows),
             'report.md': markdown_report(summary)}
+
+    if summary['schema_version'] == 4:
+        files['risk.jsonl'] = ''.join(canonical(r).decode('utf-8')+'\n' for r in summary['risk']['records'])
+        files['reservations.jsonl'] = ''.join(canonical(r).decode('utf-8')+'\n' for r in summary['risk']['reservations'])
+    return files
+
+
+def analysis_formulas(summary):
+    if summary['schema_version'] == 4:
+        return [line.replace('piso no quantum 0.000000000001 BTC', 'piso no step fictício configurado') for line in FORMULAS]
+    return FORMULAS

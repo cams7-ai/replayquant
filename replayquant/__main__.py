@@ -7,6 +7,7 @@ from .engine import replay
 from .html_report import html_report
 from .reporting import json_text, manifest, report, text_report, write_artifacts
 from .validation import ValidationError
+from .risk_models import RiskConfig
 from .exports import markdown_report
 
 
@@ -33,25 +34,46 @@ def main(argv=None):
                              help="Formato de stdout: texto (padrão), JSON, HTML ou Markdown com --analise")
         command.add_argument("--analise", action="store_true", help="Ledger, patrimônio, métricas e referências (Sprint 08)")
         if name == "demonstrar":
+            command.add_argument("--risco", action="store_true", help="Demonstração de risco e proteção (Sprint 09)")
             command.add_argument("--estrategia", choices=("sma",), help="Demonstração SMA da Sprint 07")
         if name == "executar":
             command.add_argument("--dados", required=True)
             command.add_argument("--config", required=True)
             command.add_argument("--saida", required=True)
     args = parser.parse_args(argv)
-    if args.formato == "markdown" and not args.analise:
+    if args.command == "demonstrar" and args.formato == "markdown" and not args.analise and not args.risco:
         parser.error("--formato markdown exige --analise")
     try:
         demonstration = args.command == "demonstrar"
         sma_demo = demonstration and args.estrategia == "sma"
+        risk_demo = demonstration and args.risco
         demo_data = "data/fixtures/sprint07-candles.json" if sma_demo else "data/fixtures/sprint06-candles.json"
         demo_config = "experiments/sprint07-sma.json" if sma_demo else "experiments/sprint06-manual.json"
+        if risk_demo:
+            demo_config = 'experiments/sprint09-sma.json' if sma_demo else 'experiments/sprint09-manual.json'
+            demo_data = 'data/fixtures/sprint07-candles.json' if sma_demo else 'data/fixtures/sprint09-candles.json'
         inputs = load_inputs(demo_data if demonstration else args.dados,
                              demo_config if demonstration else args.config)
-        metadata = manifest(inputs, analysis=args.analise)
+        enabled = args.analise or isinstance(inputs.config, RiskConfig)
+        if args.formato == 'markdown' and not enabled:
+            parser.error('--formato markdown exige --analise ou configuração de risco')
+        metadata = manifest(inputs, analysis=enabled)
         session = replay(inputs.candles, inputs.config, metadata["run_id"], inputs.diagnostics)
-        summary = report(session, analysis=args.analise)
-        if sma_demo:
+        summary = report(session, analysis=enabled)
+        if risk_demo:
+            if sma_demo:
+                reasons = [o.reason for o in session.orders]
+                valid = (len(summary['evaluations']) == 8 and len(summary['signals']) == 2
+                         and not session.fills and reasons == ['BELOW_MINIMUMS', 'INSUFFICIENT_ASSET']
+                         and session.balance.cash == Decimal('1000') and summary['exit_code'] == 2)
+            else:
+                valid = (summary['exit_code'] == 0 and len(session.fills) == 2
+                         and session.balance.cash == Decimal('990.00361') and session.balance.btc == 0
+                         and session.fees == Decimal('0.18639')
+                         and summary['analysis']['metrics']['realized_pnl']['value'] == Decimal('-9.99639'))
+            if not valid:
+                raise ValidationError('Demonstração de risco divergiu dos resultados obrigatórios')
+        elif sma_demo:
             if not (summary["exit_code"] == 0 and len(summary["evaluations"]) == 8
                     and len(summary["signals"]) == len(summary["decisions"]) == 2
                     and all(d["approved"] for d in summary["decisions"])
@@ -73,7 +95,7 @@ def main(argv=None):
                 print(f"Diagnóstico: {event.get('order_id', '')} {event.get('reason')}", file=sys.stderr)
             elif event["type"] == "DECISION" and not event["approved"]:
                 print(f"Diagnóstico: {event['signal_id']} {event['reason']}", file=sys.stderr)
-        if demonstration and args.analise:
+        if demonstration and args.analise and not risk_demo:
             metrics = summary['analysis']['metrics']
             expected = Decimal('-0.4') if sma_demo else Decimal('0.799')
             expected_points = 8*2+2+1 if sma_demo else 9

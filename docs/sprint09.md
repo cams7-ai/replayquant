@@ -4,7 +4,7 @@
 **Nível:** intermediário  
 **Referência:** [Planejamento](planejamento.md), especialmente seções 4, 9, 21 e 23  
 **Pré-requisitos:** [Sprint 06](sprint06.md), [Sprint 07](sprint07.md) e [Sprint 08](sprint08.md), com seus registros de validação  
-**Estado:** especificação para implementação; nenhuma implementação ou validação desta sprint é declarada como executada.
+**Estado:** especificação preservada como referência; implementação e verificações registradas em [sprint09-validacao.md](sprint09-validacao.md).
 
 ## 1. Objetivo e ponto de partida
 

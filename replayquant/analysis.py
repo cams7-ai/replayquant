@@ -23,6 +23,8 @@ def project_curve(ledger, events, config):
     current = initial
     realized = ZERO
     mark = mark_at = None
+    risk = getattr(config, 'mode', None) in ('MANUAL', 'SMA')
+    version = 4 if risk else 3
     points = []
     by_seq = {entry.source_event_seq: entry for entry in ledger.entries[1:]}
     pnl_by_fill = {trade.sell_execution_id: trade.net_pnl for trade in ledger.trades}
@@ -40,31 +42,36 @@ def project_curve(ledger, events, config):
         hypothetical = cash + liquidation_gross - liquidation_fee
         if equity != config.initial_cash + realized + unrealized:
             raise ValidationError('RECONCILIATION_FAILED: patrimônio')
-        points.append(dict(schema_version=3, run_id=initial.run_id, portfolio=initial.portfolio,
+        points.append(dict(schema_version=version, run_id=initial.run_id, portfolio=initial.portfolio,
                            point_seq=len(points)+1, at=at, source_event_seq=source_seq, phase=phase,
-                           cash_total=cash, cash_available=cash, cash_reserved=ZERO, asset_quantity=q,
+                           cash_total=cash, cash_available=getattr(current, 'cash_available_after', cash),
+                           cash_reserved=getattr(current, 'cash_reserved_after', ZERO), asset_quantity=q,
                            mark_price=mark, mark_at=mark_at, mark_reason='NO_MARKET_PRICE_YET' if mark is None else None,
                            cost_basis=basis, realized_pnl=realized, unrealized_pnl=unrealized,
                            gross_equity=equity, hypothetical_liquidation_equity=hypothetical,
                            hypothetical_exit_fee=liquidation_fee,
                            hypothetical_exit_slippage=position_value-liquidation_gross))
+        if risk:
+            points[-1].update(asset_available=getattr(current, 'asset_available_after', q),
+                              asset_reserved=getattr(current, 'asset_reserved_after', ZERO))
     point(initial.at, 0, 'INITIAL')
     for event in events:
         kind = event['type']
-        if kind in ('OPEN', 'CLOSE'):
-            mark = event['price'] if kind == 'OPEN' else event['candle'].close
+        if kind in ('OPEN', 'CLOSE', 'PROTECTION_TRIGGER'):
+            mark = (event['price'] if kind == 'OPEN' else
+                    (event['reference_price'] if kind == 'PROTECTION_TRIGGER' else event['candle'].close))
             mark_at = event['at']
             point(event['at'], event['seq'], kind)
         if event['seq'] in by_seq:
             entry = by_seq[event['seq']]
-            if kind not in ('OPEN', 'FILLED') or entry.at != event['at']:
+            if kind not in ('OPEN', 'FILLED', 'RESERVE', 'RELEASE', 'TRANSFER') or entry.at != event['at']:
                 raise ValidationError('RECONCILIATION_FAILED: origem do fill')
-            if initial.portfolio == 'STRATEGY' and (kind != 'FILLED' or event['execution_id'] != entry.execution_id):
+            if initial.portfolio == 'STRATEGY' and entry.entry_type == 'FILL' and (kind != 'FILLED' or event['execution_id'] != entry.execution_id):
                 raise ValidationError('RECONCILIATION_FAILED: referência do fill')
             current = entry
             realized += pnl_by_fill.get(entry.execution_id, ZERO)
             applied.add(event['seq'])
-            point(event['at'], event['seq'], 'FILL')
+            point(event['at'], event['seq'], 'FILL' if entry.entry_type == 'FILL' else entry.entry_type)
     if applied != set(by_seq) or current != ledger.entries[-1]:
         raise ValidationError('RECONCILIATION_FAILED: ledger fora do prefixo')
     return points
@@ -139,5 +146,8 @@ def analyze(session):
                   rounding_policy=dict(ratio_decimal_places=12, rounding='ROUND_HALF_EVEN', decisions='EXACT_RATIOS'),
                   sampling_policy='INITIAL_OPEN_BEFORE_FILL_FILL_AFTER_CLOSE', no_cash_flows=True,
                   execution_cost_policy=dict(fee_rate=session.config.fee_rate, slippage_rate=session.config.slippage_rate,
-                                             strategy_quantity=session.config.quantity, fee_currency='USDT'))
+                                             strategy_quantity=getattr(session.config, 'quantity', None), fee_currency='USDT'))
+    if getattr(session.config, 'mode', None) in ('MANUAL', 'SMA'):
+        result['policy_version'] = 'SPRINT09_V1'
+        result['sampling_policy'] = 'OPEN_TRIGGER_FILL_CLOSE_AND_RESERVATION_TRANSITIONS'
     return deepcopy(result)

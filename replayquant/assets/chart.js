@@ -46,7 +46,7 @@
         const markers = L.createSeriesMarkers(series, data.executions.map(f => ({
             id: f.id, time: f.time, price: num(f.price), position: f.side === 'BUY' ? 'atPriceBottom' : 'atPriceTop',
             color: colors[f.classification], shape: f.side === 'BUY' ? 'arrowUp' : 'arrowDown',
-            text: f.side === 'BUY' ? 'COMPRA' : 'VENDA',
+            text: (f.side === 'BUY' ? 'COMPRA' : 'VENDA') + (f.execution_time_model === 'BAR_CLOSE_RESOLUTION' ? ' (resolução no fechamento)' : ''),
         })), {autoScale: true});
         for (const trade of data.trades) {
             const line = chart.addSeries(L.LineSeries, {color: colors[trade.classification],
@@ -69,7 +69,7 @@
                 `Mínima ${text(c.low)} · Fechamento ${text(c.close)} USDT/BTC · Volume ${text(c.volume)} BTC`];
             for (const f of fillsByTime.get(time) || []) {
                 details.push(`${f.side === 'BUY' ? 'COMPRA' : 'VENDA'}: ${text(f.quantity)} BTC a ${text(f.price)} USDT/BTC; ` +
-                    `taxa ${text(f.fee)} USDT` + (f.net !== null ? `; resultado líquido ${f.net} USDT` : ''));
+                    `taxa ${text(f.fee)} USDT` + (f.execution_time_model === 'BAR_CLOSE_RESOLUTION' ? '; horário modelado; intrabar desconhecido' : '') + (f.net !== null ? `; resultado líquido ${f.net} USDT` : ''));
             }
             readout.textContent = details.join('\n');
         };

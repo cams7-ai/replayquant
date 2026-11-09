@@ -1,9 +1,10 @@
-# ReplayQuant — Sprints 06, 07 e 08
+# ReplayQuant — Sprints 06 a 09
 
 Laboratório educacional de replay Spot em Python, com candles fictícios e ordens
 manuais ou sinais SMA de BTC/USDT. Mostra como um relógio simulado transforma solicitações em
 preenchimentos, taxas e saldos. Funciona localmente com a biblioteca padrão,
-sem rede ou credenciais.
+sem rede ou credenciais. A Sprint 09 acrescenta risco e reservas pelo schema 4;
+veja [Risco e saídas protetivas](#sprint-09--risco-e-saídas-protetivas).
 
 ## Preparação e demonstração
 
@@ -31,8 +32,8 @@ Use `--formato html` para gerar um relatório profissional independente, no mesm
 estilo do RiskGate: indicadores financeiros, tabelas de ordens e preenchimentos,
 memória de cálculo e limitações. Abra o arquivo `.html` no navegador; para
 imprimir ou salvar em PDF, use a opção **Imprimir**. O documento tem layout
-adaptado a telas menores e impressão. O relatório manual não usa scripts; o SMA
-incorpora o JavaScript do gráfico, sem buscar fontes ou recursos na internet.
+adaptado a telas menores e impressão. O relatório manual legado sem análise não usa scripts; SMA, análise e risco
+incorporam o JavaScript dos gráficos, sem buscar fontes ou recursos na internet.
 Os valores usam vírgula decimal, preservando todos os dígitos do relatório.
 
 | Etapa | Caixa USDT | Posição BTC |
@@ -115,7 +116,7 @@ lógica. Na abertura, o motor recebe apenas horário, identidade e preço `open`
 o OHLCV completo é liberado no fechamento. Não há acesso antecipado aos extremos,
 fechamento ou volume final para preencher uma ordem.
 
-Há uma pendência por vez e uma posição de quantidade fixa. Aceitar uma ordem não
+Nos modos legados, há uma pendência por vez e uma posição de quantidade fixa. Aceitar uma ordem não
 debita nem reserva. Uma compra exige BTC zero e caixa estimado com taxa no
 fechamento; uma venda exige BTC suficiente. O motor revalida na abertura e rejeita
 integralmente se o preço efetivo tornar o caixa insuficiente. Posição e caixa só
@@ -164,8 +165,8 @@ Consulte o [planejamento](docs/planejamento.md), o
 [glossário](docs/sprint06-glossario.md) e os
 [resultados de validação](docs/sprint06-validacao.md).
 
-Risco, reservas operacionais e dados reais continuam previstos para sprints
-posteriores. A Sprint 08 acrescenta ledger, marcação e métricas com `--analise`. Esta entrega não conecta exchanges nem recomenda operações.
+Risco e reservas operacionais estão disponíveis no modo opt-in da Sprint 09.
+Dados reais continuam previstos para sprints posteriores. A Sprint 08 acrescenta ledger, marcação e métricas com `--analise`. Esta entrega não conecta exchanges nem recomenda operações.
 
 
 ## Estratégia SMA — Sprint 07
@@ -478,4 +479,129 @@ sem reler dados de mercado.
 
 Veja a [validação](docs/sprint08-validacao.md) e o
 [glossário](docs/sprint08-glossario.md). O modelo é fictício, local e sem
-anualização, aportes, reservas operacionais ou liquidação forçada.
+anualização, aportes ou liquidação forçada; reservas operacionais são exclusivas do modo da Sprint 09.
+
+
+## Sprint 09 — Risco e saídas protetivas
+
+A configuração **schema 4** ativa dimensionamento, reservas e stop/alvo com análise
+obrigatória. Os schemas manuais 1 e SMA 2 mantêm sua semântica e continuam com
+saída enriquecida 3 somente quando `--analise` for solicitado. O código evoluiu,
+portanto os hashes de código e IDs de execução também mudam; seus algoritmos
+anteriores foram preservados.
+
+Na raiz, com `.venv` ativada:
+
+```bash
+python -m replayquant demonstrar --risco --formato texto
+python -m replayquant demonstrar --risco --formato json
+python -m replayquant demonstrar --risco --formato markdown
+python -m replayquant demonstrar --risco --estrategia sma --formato json
+```
+
+O último comando **retorna 2 por política**, como esperado: com o step fictício
+0.001 BTC da configuração de demonstração, o orçamento não permite quantidade
+mínima para a compra a preços próximos de 102000 USDT/BTC. A decisão é
+`BELOW_MINIMUMS`; a saída SMA posterior informa `INSUFFICIENT_ASSET`. Não houve
+posição, taxa ou perda nesse cenário. Um teste com filtros menores valida o
+caminho SMA com compra/venda efetivas, sem alterar os candles da Sprint 07.
+
+Salvar onze artefatos e um HTML em caminhos novos:
+
+```bash
+relatorios_sprint09_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint09-candles.json --config experiments/sprint09-manual.json --saida "$relatorios_sprint09_dir/execucao" --formato html > "$relatorios_sprint09_dir/relatorio.html"
+```
+
+`executar` reconhece o modo pelo schema da configuração; não recebe `--risco`.
+`demonstrar --risco` não grava artefatos. `--analise` é redundante no schema 4 e
+não muda resultados, artefatos ou identidade. Os quatro formatos são permitidos
+nesse modo, inclusive Markdown sem `--analise`. A API `manifest(inputs)` e
+`report(session)` ativa a análise automaticamente; passar explicitamente
+`analysis=False` para configuração de risco é erro. O parâmetro continua sendo
+booleano real quando informado.
+
+A configuração completa está em `experiments/sprint09-manual.json`. Não há campo
+`quantity`: cada BUY calcula a quantidade e cada SELL encerra o lote integral.
+O modo manual admite BUY, SELL e CANCEL no fechamento; CANCEL tem
+`target_order_id` e só cancela pendência comum. O schema 4 em modo SMA substitui
+`orders` por `strategy`. Filtros de instrumento e percentuais são fictícios.
+Veja campos, faixas e contratos na [especificação](docs/sprint09.md).
+
+Com patrimônio P, caixa disponível B, exposição X, entrada estimada E, stop S,
+alíquota f e orçamento R=P×r, a perda unitária planejada é
+`L=E×(1+f)−S×(1−f)`. A quantidade é o menor limite de risco R/L, exposição
+`max(0,P×x−X)/E` e saldo `B/(E×(1+f))`, ajustado para baixo em múltiplos exatos
+do step. Razões preservam numerador/denominador; não se usam valores arredondados
+ou floats para decidir. Um mínimo não autoriza aumentar a compra.
+
+| Cenário fictício | q BTC | Caixa final USDT | Resultado realizado USDT | Taxas USDT |
+| --- | --- | --- | --- | --- |
+| Stop a 90 | 0.981 | 990.00361 | -9.99639 | 0.18639 |
+| Gap: stop executado a 80 | 0.981 | 980.20342 | -19.79658 | 0.17658 |
+| Alvo a 120 | 0.981 | 1019.40418 | 19.40418 | 0.21582 |
+| Ambos os níveis: STOP_FIRST | 0.981 | 990.00361 | -9.99639 | 0.18639 |
+
+Capital inicial 1000, orçamento 10, compra a 100, stop 90, alvo 120 e taxa 0.001.
+Aceitar BUY reserva 98.1981 USDT, preservando caixa total e patrimônio. Preencher
+consome o desembolso, abre BTC 0.981 e cria **uma** reserva de BTC compartilhada
+por stop e alvo. Disponível + reservado = total em cada moeda; não somar reserva
+ao patrimônio novamente. Cancelar/rejeitar/liberar não cobra taxa nem inventa fill.
+Abertura favorável devolve a diferença; desfavorável revalida risco/caixa antes de
+qualquer débito. R, S, T e q ficam congelados na aprovação; falha de revalidação
+rejeita integralmente e libera, sem redimensionar silenciosamente.
+
+A proteção só é elegível no candle seguinte ao da entrada: existe uma janela
+sem atuação. Na abertura, gap protetivo tem prioridade sobre venda comum; depois
+vêm SELL comum e BUY revalidado. No intervalo, a execução recebe o OHLC completo
+antes de CLOSE chegar à estratégia. Um único toque usa S ou T; ambos usam
+STOP_FIRST com ambiguidade explícita. A referência recebe slippage adverso e taxa
+uma única vez. Gap usa o open, não um stop ficticiamente garantido.
+
+`BAR_CLOSE_RESOLUTION` indica saída resolvida no fechamento do intervalo, com
+horário intraperíodo desconhecido. O marcador fica nesse horário modelado, e
+trade/duração/exposição refletem a aproximação. A curva não transforma máximas
+e mínimas em caminho observado. Nova BUY no fechamento do candle de uma saída é
+bloqueada; é necessário um novo sinal/solicitação posterior.
+
+Perda diária usa a primeira observação positiva do dia UTC; atingir o limite
+bloqueia entradas até a virada do dia, mesmo com recuperação. Drawdown usa o pico
+da sessão e seu bloqueio persiste até o fim do experimento. Reservas não provocam
+perda. Saídas e proteções permanecem permitidas sob esses bloqueios. Sem base
+positiva, usar indisponibilidade com motivo, sem dividir por zero.
+
+Os códigos continuam 0/1/2. Stop/alvo/cancelamento válido são operações normais;
+rejeição de entrada/cancelamento inválido/ordem sem abertura futura retorna 2;
+erro técnico/dados inválidos/lacuna retorna 1. Perda realizada superior ao
+orçamento não é erro do simulador. Posição final mantém KEEP_OPEN. No término
+normal, reservas são liberadas sem vender a posição. Lacuna SMA conserva as
+reservas/posição/pendência do prefixo aceito, sem finalização retroativa.
+
+A saída schema 4 contém os nove arquivos da Sprint 08 e também `risk.jsonl`
+(avaliações, observações/bloqueios e gatilhos) e `reservations.jsonl`
+(titularidade/quantidade/status com referências ao ledger). `ledger.jsonl`
+reconstrói totais, disponíveis e reservados. Em `equity.csv`, os cabeçalhos da
+Sprint 08 são mantidos e acrescenta-se ao final `asset_available,asset_reserved`;
+os outros CSVs conservam cabeçalhos e semântica, com versão 4. São **onze arquivos**
+determinísticos, em diretório novo, com INCOMPLETE até terminar e manifesto por
+último. Relatórios apresentam candidatos exatos, incrementos, fórmulas, reservas,
+bloqueios, proteções e perdas previstas/realizadas. Tabelas largas têm rolagem
+horizontal e valores exatos; gráficos e impressão são locais.
+
+A identidade acrescenta `risk_policy` e `analysis_policy`, ambas `SPRINT09_V1`.
+Não inclui horário real, caminho absoluto ou diretório de saída. Benchmarks usam
+mesmos custos, datas e filtros de instrumento, com capital independente, sem
+aplicar orçamento, bloqueios ou proteções da estratégia passiva.
+
+Na API, use `RiskConfig`, `RiskRequest`, `RiskSession` e as fases de abertura e
+fechamento existentes. A sessão prepara cada transição em um snapshot isolado e
+só a compromete no sucesso; o ledger financeiro da Sprint 08 continua responsável
+por custo, trades e saldos totais. A extensão de reservas é auditável por prefixo.
+Consultas retornam snapshots. `EquityGuard` e `evaluate` oferecem componentes
+puros para conferir bloqueios e dimensionamento isoladamente.
+
+O modelo não garante preço nem teto de perda; não tem livro, fila, parciais,
+stop-limit ou recuperação operacional após reinício. A implementação é em memória
+e prepara snapshots completos; não foi otimizada para grandes históricos.
+Consulte o [glossário](docs/sprint09-glossario.md) e o
+[registro de validação](docs/sprint09-validacao.md).

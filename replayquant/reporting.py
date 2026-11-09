@@ -8,6 +8,8 @@ from pathlib import Path
 import platform
 from . import __version__
 from .models import SMAConfig
+from .risk_models import RiskConfig
+from .risk import POLICY as RISK_POLICY
 from .analysis import analyze, analysis_flag, POLICY
 from .validation import ValidationError, financial
 
@@ -36,8 +38,22 @@ def json_text(value):
     return json.dumps(wire(value), indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False) + "\n"
 
 
-def manifest(inputs, analysis=False):
-    analysis_flag(analysis)
+_DEFAULT = object()
+
+
+def resolve_analysis(config, value):
+    risk = isinstance(config, RiskConfig)
+    if value is _DEFAULT:
+        return risk
+    analysis_flag(value)
+    if risk and not value:
+        raise ValidationError('Configuração de risco exige análise')
+    return value
+
+
+def manifest(inputs, analysis=_DEFAULT):
+    analysis = resolve_analysis(inputs.config, analysis)
+    risk = isinstance(inputs.config, RiskConfig)
     root = Path(__file__).resolve().parent.parent
     paths = sorted([p.relative_to(root).as_posix() for p in (root / "replayquant").rglob("*.py")]
                    + [p.relative_to(root).as_posix() for p in (root / "replayquant/assets").rglob("*") if p.is_file()]
@@ -48,7 +64,9 @@ def manifest(inputs, analysis=False):
                 "code_hash": sha256(canonical(code_files)).hexdigest(),
                 "python_version": platform.python_version()}
     if analysis:
-        identity["analysis_policy"] = POLICY
+        identity["analysis_policy"] = RISK_POLICY if risk else POLICY
+    if risk:
+        identity["risk_policy"] = RISK_POLICY
     metadata = {"schema_version": 1, "run_id": sha256(canonical(identity)).hexdigest(),
             **identity, "code_files": code_files, "package_version": __version__,
             "dependencies": [], "decimal_policy": {"precision": 40, "rounding": "ROUND_HALF_EVEN",
@@ -73,14 +91,29 @@ def manifest(inputs, analysis=False):
                         benchmarks=['HOLD_USDT', 'BUY_HOLD_BTC'], no_cash_flows=True,
                         observation_start=inputs.candles[0].open_time,
                         coverage_policy='ACCEPTED_PREFIX_ON_GAP')
+    if risk:
+        metadata.update(schema_version=4, input_config_schema_version=4,
+                        simulation_mode=inputs.config.mode, risk_policy=RISK_POLICY,
+                        analysis_policy=RISK_POLICY, instrument_filters=inputs.config.instrument_filters,
+                        risk_parameters=inputs.config.risk, reservation_policy='SHARED_BRACKET_RESERVATION',
+                        protection_policy='NEXT_CANDLE_OPEN_GAP_THEN_RANGE_STOP_FIRST',
+                        execution_model='NEXT_OPEN_OR_BAR_CLOSE_RESOLUTION',
+                        benchmark_quantity_quantum=inputs.config.instrument_filters.step,
+                        benchmark_risk_policy='PASSIVE_NO_STOPS_OR_BLOCKS',
+                        sampling_policy='INITIAL_OPEN_TRIGGER_FILL_CLOSE_AND_RESERVATIONS',
+                        temporal_policy='OPEN_GAP_SELL_BUY_THEN_RANGE_CLOSE_STRATEGY',
+                        gap_policy='INTERRUPT_PRESERVE_RESERVATIONS')
+        if inputs.config.mode == 'SMA':
+            metadata.update(strategy=inputs.config.strategy, warmup_candles=inputs.config.strategy.long_window+1)
     return metadata
 
 
 @financial
-def report(session, analysis=False):
-    analysis_flag(analysis)
+def report(session, analysis=_DEFAULT):
+    analysis = resolve_analysis(session.config, analysis)
+    risk = isinstance(session.config, RiskConfig)
     sma = isinstance(session.config, SMAConfig)
-    interrupted = sma and session.status == "INTERRUPTED"
+    interrupted = (sma or risk) and session.status == "INTERRUPTED"
     if not session.finished and not interrupted:
         raise ValidationError("Relatório final exige sessão encerrada")
     fills = session.fills
@@ -135,6 +168,9 @@ def report(session, analysis=False):
             "Sem reservas, execução parcial, marcação a mercado ou liquidação forçada.",
             "Latência zero entre eventos ordenados; disponibilidade completa assumida no fechamento.",
             "USDT não é o próprio dólar; taxas cobradas em USDT."]
+    if risk:
+        from .risk_reporting import enrich
+        return enrich(summary, session)
     if analysis:
         summary.update(schema_version=3, input_config_schema_version=2 if sma else 1,
                        simulation_mode='SMA' if sma else 'MANUAL', status='INTERRUPTED' if interrupted else 'COMPLETED',
@@ -151,6 +187,9 @@ def ratio_text(value):
 
 
 def text_report(value):
+    if value.get('schema_version') == 4:
+        from .exports import markdown_report
+        return markdown_report(value)
     if value.get('schema_version') == 3:
         from .exports import analysis_markdown
         return f"ReplayQuant — Sprint 08\nExecução: {value['run_id']}\n" + analysis_markdown(value)
@@ -204,8 +243,8 @@ def text_report(value):
 
 def write_artifacts(directory, metadata, session, summary):
     from .exports import analysis_files
-    enriched = summary.get('schema_version') == 3
-    events = [{**e, 'schema_version': 3} for e in session.events] if enriched else session.events
+    enriched = summary.get('schema_version') in (3, 4)
+    events = [{**e, 'schema_version': summary['schema_version']} for e in session.events] if enriched else session.events
     contents = analysis_files(summary) if enriched else {}
     contents.update({'events.jsonl': ''.join(canonical(e).decode('utf-8') + '\n' for e in events),
                      'report.json': json_text(summary)})

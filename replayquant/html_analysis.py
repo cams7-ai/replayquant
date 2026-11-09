@@ -1,6 +1,6 @@
 """Análise HTML e curvas por índice; conserva cada ponto de mesmo timestamp."""
 from html import escape
-from .exports import LABELS, FORMULAS, metric_text
+from .exports import LABELS, FORMULAS, metric_text, analysis_formulas
 from .html_chart import ASSETS, LIBRARY, script_json
 from .reporting import canonical
 
@@ -51,7 +51,7 @@ def analysis_html(value, library_loaded=False):
     parts.extend([f'<script id="equity-data" type="application/json">{script_json(datasets)}</script>',
                   f'<script id="equity-controller">{(ASSETS/"equity.js").read_text(encoding="utf-8")}</script>',
                   '<h3>Reconciliação e memória de cálculo</h3>',
-                  f"<p>Taxa: {a['execution_cost_policy']['fee_rate']} · Slippage: {a['execution_cost_policy']['slippage_rate']} · Quantidade fixa: {a['execution_cost_policy']['strategy_quantity']} BTC</p>",
+                  f"<p>Taxa: {a['execution_cost_policy']['fee_rate']} · Slippage: {a['execution_cost_policy']['slippage_rate']} · Quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] != 4 else 'variável por risco'} BTC</p>",
                   f"<p>Reconciliação: {a['reconciliation']['status']} · Capital inicial {value['initial_cash']} USDT · "
                   f"Caixa reconstruído {a['reconciliation']['reconstructed_cash']} USDT · BTC {a['reconciliation']['reconstructed_asset']}</p>",
                   '<details><summary>Todos os pontos exatos da estratégia</summary>',
@@ -80,6 +80,6 @@ def analysis_html(value, library_loaded=False):
     for b in a['benchmarks']:
         parts.append(f"<p>{b['portfolio']}: {escape(canonical(b['parameters']).decode('utf-8'))}</p>")
     parts.append('<h3>Fórmulas e limites</h3><ul>')
-    parts.extend(f'<li>{escape(line)}</li>' for line in FORMULAS)
+    parts.extend(f'<li>{escape(line)}</li>' for line in analysis_formulas(value))
     parts.append('</ul></section>')
     return ''.join(parts)
