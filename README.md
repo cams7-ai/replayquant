@@ -513,6 +513,44 @@ relatorios_sprint09_dir=$(mktemp -d)
 python -m replayquant executar --dados data/fixtures/sprint09-candles.json --config experiments/sprint09-manual.json --saida "$relatorios_sprint09_dir/execucao" --formato html > "$relatorios_sprint09_dir/relatorio.html"
 ```
 
+Para comparar alvo, ambiguidade e gap, use as fixtures alternativas com a mesma
+configuração manual. O bloco abaixo cria uma pasta temporária própria, com um
+HTML e um diretório de artefatos para cada cenário:
+
+```bash
+cenarios_sprint09_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint09-candles-alvo.json --config experiments/sprint09-manual.json --saida "$cenarios_sprint09_dir/alvo" --formato html > "$cenarios_sprint09_dir/alvo.html"
+python -m replayquant executar --dados data/fixtures/sprint09-candles-ambiguo.json --config experiments/sprint09-manual.json --saida "$cenarios_sprint09_dir/ambiguo" --formato html > "$cenarios_sprint09_dir/ambiguo.html"
+python -m replayquant executar --dados data/fixtures/sprint09-candles-gap.json --config experiments/sprint09-manual.json --saida "$cenarios_sprint09_dir/gap" --formato html > "$cenarios_sprint09_dir/gap.html"
+```
+
+Os três comandos retornam **0**, com compra de **0.981 BTC** e posição final
+zerada. No alvo, a venda ocorre a 120 e o caixa final é **1019.40418 USDT**.
+No cenário ambíguo, o candle toca stop e alvo; a convenção **STOP_FIRST** resolve
+a venda a 90, com caixa final **990.00361 USDT**. No gap, a abertura a 80 define
+a execução do stop, com caixa final **980.20342 USDT**: a perda realizada supera
+o orçamento planejado de 10 USDT. A tabela abaixo detalha resultados e taxas.
+
+Para executar `experiments/sprint09-sma.json`, combine-o com os candles da
+Sprint 07, usados também pela demonstração SMA com risco:
+
+```bash
+sma_sprint09_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint07-candles.json --config experiments/sprint09-sma.json --saida "$sma_sprint09_dir/execucao" --formato html > "$sma_sprint09_dir/relatorio.html"
+echo "Código de saída SMA: $? (esperado: 2)"
+```
+
+Esse exemplo usa janelas SMA **2/3**, produz oito avaliações da estratégia e dois
+sinais, mas nenhum preenchimento: BUY é rejeitada por `BELOW_MINIMUMS` e SELL
+por `INSUFFICIENT_ASSET`. O código **2** é esperado; o HTML e os onze artefatos
+são gravados, com caixa final **1000 USDT**, BTC e taxas zero. Em scripts com
+`set -e`, trate esse retorno esperado para continuar após o comando.
+
+Use `sprint09-candles.json` e suas variantes para os exemplos manuais acima.
+Combinar `sprint06-candles.json` com `sprint09-manual.json` também rejeita a
+entrada por `BELOW_MINIMUMS`: ao preço de 100000, a quantidade permitida pelo
+risco é aproximadamente 0.000981354269 BTC, abaixo do mínimo e step de 0.001 BTC.
+
 `executar` reconhece o modo pelo schema da configuração; não recebe `--risco`.
 `demonstrar --risco` não grava artefatos. `--analise` é redundante no schema 4 e
 não muda resultados, artefatos ou identidade. Os quatro formatos são permitidos
