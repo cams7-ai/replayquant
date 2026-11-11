@@ -49,8 +49,8 @@ Criar futuramente `experiments/sprint09-manual.json` com exatamente:
   "fee_rate": "0.001",
   "slippage_rate": "0",
   "instrument_filters": {
-    "step": "0.001",
-    "min_quantity": "0.001",
+    "step": "0.000001",
+    "min_quantity": "0.000001",
     "min_notional": "0"
   },
   "risk": {
@@ -207,35 +207,39 @@ Todos os dados abaixo são fictícios. Criar somente durante a implementação o
 
 ### 8.1. Stop canônico
 
+Revisão de escala em 11/11/2026: OHLC na referência de 100000 USDT/BTC,
+como nas sprints 06–08. Step/mínimo de 0.000001 BTC preservam os fluxos em
+USDT dos exemplos manuais; não houve mudança de unidade nem dados reais.
+
 Criar `data/fixtures/sprint09-candles.json` com o mesmo envelope schema 1 e campos exatos de candle da Sprint 06. Para cada linha, usar `source=FICTICIA`, `symbol=BTCUSDT`, `interval=1m`, `is_closed=true`, `volume="1"`; converter todos os OHLC em strings. Horários em 01/01/2026 UTC:
 
 | open_time | close_time | open | high | low | close |
 | --- | --- | --- | --- | --- | --- |
-| 12:00 | 12:01 | 100 | 100 | 100 | 100 |
-| 12:01 | 12:02 | 100 | 105 | 95 | 102 |
-| 12:02 | 12:03 | 102 | 106 | 89 | 95 |
-| 12:03 | 12:04 | 95 | 96 | 94 | 95 |
+| 12:00 | 12:01 | 100000 | 100000 | 100000 | 100000 |
+| 12:01 | 12:02 | 100000 | 105000 | 95000 | 102000 |
+| 12:02 | 12:03 | 102000 | 106000 | 89000 | 95000 |
+| 12:03 | 12:04 | 95000 | 96000 | 94000 | 95000 |
 
-Usar a configuração completa da seção 3.2. No fechamento 12:01: P=B=1000, X=0, E=100, S=90, T=120, R=10 e L=10.19. `q_risco=1000/1019 BTC`; q após piso em 0.001 = **0.981 BTC**. O próximo incremento viola o orçamento. Perda planejada = **9.99639 USDT**.
+Usar a configuração completa da seção 3.2. No fechamento 12:01: P=B=1000, X=0, E=100000, S=90000, T=120000, R=10 e L=10190. `q_risco=1/1019 BTC`; q após piso em 0.000001 = **0.000981 BTC**. O próximo incremento viola o orçamento. Perda planejada = **9.99639 USDT**.
 
 | Fase | Caixa total USDT | Caixa reservado USDT | BTC total | BTC reservado | Taxas pagas USDT |
 | --- | --- | --- | --- | --- | --- |
 | Inicial | 1000 | 0 | 0 | 0 | 0 |
 | BUY aceito e reservado | 1000 | 98.1981 | 0 | 0 | 0 |
-| BUY preenchido na abertura 12:01 | 901.8019 | 0 | 0.981 | 0.981 | 0.0981 |
+| BUY preenchido na abertura 12:01 | 901.8019 | 0 | 0.000981 | 0.000981 | 0.0981 |
 | Stop do intervalo 12:02–12:03 resolvido em 12:03 | 990.00361 | 0 | 0 | 0 | 0.18639 |
 
 BTC reservado inclui somente uma reserva compartilhada da proteção. No stop: bruto 88.29, taxa 0.08829, recebimento 88.20171 USDT. Trade líquido = **-9.99639 USDT**, final BTC zero. Ambos os bloqueios patrimoniais permanecem falsos nesse exemplo. O fechamento 12:02, antes da saída, marca patrimônio **1001.8639 USDT**. A reserva inicial não altera patrimônio e não cria trade.
 
 ### 8.2. Variantes obrigatórias
 
-1. **Gap desfavorável:** substituir somente o terceiro candle por O=80, H=85, L=75, C=80. Stop executa na abertura 12:02 a 80, sem esperar o range. Recebimento 78.40152, perda realizada **19.79658**, taxas totais 0.17658 e caixa final **980.20342 USDT**. Excede R=10; não limitar a perda artificialmente ao orçamento. O gap também evidencia que stop não garante preço.
-2. **Alvo:** terceiro candle O=102, H=121, L=101, C=115. Alvo resolve a 120 na recepção do fechamento; recebimento 117.60228, lucro **19.40418**, taxas 0.21582 e caixa final **1019.40418 USDT**.
-3. **Ambiguidade:** terceiro candle O=102, H=121, L=89, C=100. Resultado igual ao stop canônico; marcar ambos os toques, STOP_FIRST e `ambiguous=true`, sem afirmar sequência real.
-4. **Candle de entrada:** alterar o segundo candle para O=100, H=121, L=89, C=102. Nenhuma proteção atua nesse candle; saída continua pelo terceiro candle. Registrar início de elegibilidade na abertura 12:02.
+1. **Gap desfavorável:** substituir somente o terceiro candle por O=80000, H=85000, L=75000, C=80000. Stop executa na abertura 12:02 a 80000, sem esperar o range. Recebimento 78.40152, perda realizada **19.79658**, taxas totais 0.17658 e caixa final **980.20342 USDT**. Excede R=10; não limitar a perda artificialmente ao orçamento. O gap também evidencia que stop não garante preço.
+2. **Alvo:** terceiro candle O=102000, H=121000, L=101000, C=115000. Alvo resolve a 120000 na recepção do fechamento; recebimento 117.60228, lucro **19.40418**, taxas 0.21582 e caixa final **1019.40418 USDT**.
+3. **Ambiguidade:** terceiro candle O=102000, H=121000, L=89000, C=100000. Resultado igual ao stop canônico; marcar ambos os toques, STOP_FIRST e `ambiguous=true`, sem afirmar sequência real.
+4. **Candle de entrada:** alterar o segundo candle para O=100000, H=121000, L=89000, C=102000. Nenhuma proteção atua nesse candle; saída continua pelo terceiro candle. Registrar início de elegibilidade na abertura 12:02.
 5. **Cancelamento:** depois do BUY canônico no mesmo fechamento 12:01, acrescentar `{"id":"cancelar-01","at_close":"2026-01-01T12:01:00+00:00","side":"CANCEL","target_order_id":"entrada-01"}`. Reserva 98.1981 volta ao disponível; caixa 1000, BTC/taxas zero, sem trade. Status da ordem CANCELED, código 0; cancelar não é falha financeira.
-6. **Concorrência/mínimos:** segunda BUY no fechamento 12:01 é recusada por pendência sem consumir a primeira reserva. Em avaliação isolada, usar step `0.000003`, mínimo superior à candidata, saldo zero e igualdade com mínimos/limites; não arredondar casas decimais nem aumentar q. O componente puro também deve conferir E=100000, S=98000, P=B=1000, X=0, r=0.01, x=1, f=0.001 e step=0.000001: L=2198, q=0.004549, desembolso 455.3549 e perda 9.998702 USDT.
-7. **Revalidação desfavorável:** segundo candle O=101, H=105, L=95, C=102. A aprovação usou E=100; a perda efetiva planejada de q=0.981 com S=90 sobe para **10.978371**, acima de R. Rejeitar BUY e liberar 98.1981, sem fill/taxa/BTC. Não redimensionar ou reancorar S.
+6. **Concorrência/mínimos:** segunda BUY no fechamento 12:01 é recusada por pendência sem consumir a primeira reserva. Em avaliação isolada, usar step `0.000000003`, mínimo superior à candidata, saldo zero e igualdade com mínimos/limites; não arredondar casas decimais nem aumentar q. O componente puro também deve conferir E=100000, S=98000, P=B=1000, X=0, r=0.01, x=1, f=0.001 e step=0.000001: L=2198, q=0.004549, desembolso 455.3549 e perda 9.998702 USDT.
+7. **Revalidação desfavorável:** segundo candle O=101000, H=105000, L=95000, C=102000. A aprovação usou E=100000; a perda efetiva planejada de q=0.000981 com S=90000 sobe para **10.978371**, acima de R. Rejeitar BUY e liberar 98.1981, sem fill/taxa/BTC. Não redimensionar ou reancorar S.
 8. **Bloqueios:** observações causais de patrimônio 1000 → 970 → 1000 no mesmo dia, limite diário 0.03: bloquear na igualdade e manter até a virada UTC. Com limite drawdown 0.05, 1000 → 1050 → 990 → 1050: queda 60/1050 ultrapassa limite; bloquear até fim da sessão, inclusive no dia seguinte. Conferir zero, base diária ausente/parcial e dois pontos distintos no mesmo timestamp. Esses vetores são testes do componente, não injeção de depósitos no motor.
 9. **SELL e prioridade:** posição canônica com SELL manual solicitado em 12:02 e gap no terceiro candle: proteção vence, SELL comum é cancelada e há uma única venda/taxa. Sem gap/toque de abertura, SELL comum preenche antes de inspecionar o range. Com bloqueio BUY ativo, ambas as formas de saída permanecem possíveis.
 10. **SMA e interrupção:** criar `experiments/sprint09-sma.json` a partir da configuração da seção 3.2, substituindo modo/ordens por SMA_CROSS de janelas 2/3. Usar os candles canônicos já versionados da Sprint 07; conferir sinais/aquecimento iguais ao modo antigo e decisões de risco separadas. Incluir testes de pendência final, reserva retida em lacuna, ausência de operações retroativas e proteção/ledger causais na API incremental e nos arquivos.
@@ -299,7 +303,7 @@ python -m unittest discover -s tests -v
 git diff --check
 ```
 
-Esperado 0 nos cenários manuais normais/gap/alvo/ambíguo e nos onze cmp; perda acima do orçamento não torna inválida uma saída que foi corretamente simulada. O modo SMA pode retornar 2 por decisões legítimas de risco: o implementador deve registrar código e motivos esperados antes de tratá-los como verificação concluída, sem mascarar erro técnico. Casos negativos da seção 11 são conferidos na suíte com códigos pertinentes. Redirecionar HTML para fora de `--saida`; conferir stderr e código antes de usar o arquivo.
+Esperado 0 nos cenários manuais normais/gap/alvo/ambíguo e nos onze cmp; perda acima do orçamento não torna inválida uma saída que foi corretamente simulada. O SMA canônico retorna 0, com q=0.000962 BTC, caixa 999.8076 USDT e taxas 0.1924 USDT. Filtros maiores podem produzir código 2 por decisões legítimas de risco; esses casos são cobertos por testes separados. Casos negativos da seção 11 são conferidos na suíte com códigos pertinentes. Redirecionar HTML para fora de `--saida`; conferir stderr e código antes de usar o arquivo.
 
 ## 11. Critérios de aceite
 
@@ -357,7 +361,7 @@ DIMENSIONAMENTO E REVALIDAÇÃO
 Siga a seção 4: P patrimonial bruto, B disponível, X exposição nominal marcada,
 E=marca*(1+slippage), S=E*(1-stop_fraction), T=E*(1+target_fraction), R=P*r,
 L=E*(1+f)-S*(1-f). q_bruta=min(R/L,max(0,P*x-X)/E,B/(E*(1+f))). Use razões exatas
-e floor de incrementos por step, inclusive 0.000003; não arredonde casas para
+e floor de incrementos por step, inclusive 0.000000003; não arredonde casas para
 simular step. Recalcule e reduza se necessário; mínimos nunca autorizam aumentar.
 Igualdade com limites é válida. Preserve candidatos, limitadores empatados,
 razões e memória de cálculo; candidata rejeitada não é quantidade aprovada.
@@ -413,16 +417,16 @@ do fechamento. No candle da saída não aceite nova BUY decidida nesse fechament
 EXEMPLOS E ARQUIVOS
 Crie a configuração JSON exata da seção 3.2 e os candles completos definidos
 pela tabela da seção 8.1, usando os campos schema 1 existentes. Capital 1000,
-f=0.001, a=0, E=100, S=90, T=120, R=10, L=10.19, step=0.001, q=0.981.
+f=0.001, a=0, E=100000, S=90000, T=120000, R=10, L=10190, step=0.000001, q=0.000981.
 Reserve 98.1981; compra na abertura 12:01 UTC de 01/01/2026 deixa caixa 901.8019,
-BTC 0.981 e taxa 0.0981. Stop do terceiro candle resolve a 90 no fechamento
+BTC 0.000981 e taxa 0.0981. Stop do terceiro candle resolve a 90000 no fechamento
 12:03, recebimento 88.20171, perda 9.99639, taxa total 0.18639 e caixa 990.00361.
 Não aplique stop/alvo no candle da entrada.
-Crie variantes gap/alvo/ambígua da seção 8.2 com os nomes fixados: gap a 80
-produz caixa 980.20342 e perda 19.79658 acima de R; alvo a 120 produz caixa
+Crie variantes gap/alvo/ambígua da seção 8.2 com os nomes fixados: gap a 80000
+produz caixa 980.20342 e perda 19.79658 acima de R; alvo a 120000 produz caixa
 1019.40418; ambos toques reproduzem o stop com ambiguidade. Não limite perda ao
 orçamento nem altere dados para obter lucro. Confira CANCEL sem fill, concorrência,
-step não decimal, mínimos, revalidação a 101 (perda 10.978371 rejeitada), bloqueios,
+step não decimal, mínimos, revalidação a 101000 (perda 10.978371 rejeitada), bloqueios,
 prioridade SELL/proteção e integração SMA com fixtures antigas. Crie configuração
 sprint09-sma conforme seção 8.2.10, sem modificar os candles antigos.
 

@@ -8,8 +8,8 @@
   "fee_rate": "0.001",
   "slippage_rate": "0",
   "instrument_filters": {
-    "step": "0.001",
-    "min_quantity": "0.001",
+    "step": "0.000001",
+    "min_quantity": "0.000001",
     "min_notional": "0"
   },
   "risk": {

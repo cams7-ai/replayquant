@@ -36,13 +36,13 @@
 
 ## Exemplo conferível
 
-P=1000 USDT, r=0.01, E=100 USDT/BTC, S=90, f=0.001. R=10 e
-L=10.19 USDT/BTC; q_risco=1000/1019 BTC. Piso no step 0.001 resulta em
-q=0.981 BTC. O desembolso reservado é 98.1981 USDT e a perda planejada é
+P=1000 USDT, r=0.01, E=100000 USDT/BTC, S=90000, f=0.001. R=10 e
+L=10190 USDT/BTC; q_risco=1/1019 BTC. Piso no step 0.000001 resulta em
+q=0.000981 BTC. O desembolso reservado é 98.1981 USDT e a perda planejada é
 9.99639 USDT.
 
-Uma saída a 90 recebe 88.20171 USDT e realiza −9.99639 USDT. Um gap que executa
-a 80 recebe 78.40152 e realiza −19.79658 USDT. A diferença não é erro contábil:
+Uma saída a 90000 recebe 88.20171 USDT e realiza −9.99639 USDT. Um gap que executa
+a 80000 recebe 78.40152 e realiza −19.79658 USDT. A diferença não é erro contábil:
 o preço não foi garantido pelo orçamento. As taxas já estão nesses fluxos e
 não são debitadas novamente.
 

@@ -62,10 +62,10 @@ def main(argv=None):
         summary = report(session, analysis=enabled)
         if risk_demo:
             if sma_demo:
-                reasons = [o.reason for o in session.orders]
                 valid = (len(summary['evaluations']) == 8 and len(summary['signals']) == 2
-                         and not session.fills and reasons == ['BELOW_MINIMUMS', 'INSUFFICIENT_ASSET']
-                         and session.balance.cash == Decimal('1000') and summary['exit_code'] == 2)
+                         and len(session.fills) == 2 and session.fills[0].quantity == Decimal('0.000962')
+                         and session.balance.cash == Decimal('999.8076') and session.balance.btc == 0
+                         and session.fees == Decimal('0.1924') and summary['exit_code'] == 0)
             else:
                 valid = (summary['exit_code'] == 0 and len(session.fills) == 2
                          and session.balance.cash == Decimal('990.00361') and session.balance.btc == 0

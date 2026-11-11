@@ -52,25 +52,25 @@ def action(id, at, side='BUY', target=None):
 class RiskSizingTests(unittest.TestCase):
     def setUp(self):
         i=inputs();self.config=i.config;self.at=i.candles[0].close_time
-        self.snapshot=RiskSnapshot(D('1000'),D('1000'),D('0'),D('100'),self.at,self.at)
+        self.snapshot=RiskSnapshot(D('1000'),D('1000'),D('0'),D('100000'),self.at,self.at)
 
     def test_exact_budget_candidates_and_floor(self):
         decision=evaluate(self.config,self.snapshot);s=decision['sizing']
         self.assertTrue(decision['approved'])
-        for name,expected in {'entry':'100','stop':'90','target':'120','budget':'10',
-                              'loss_per_unit':'10.19','candidate_quantity':'.981',
+        for name,expected in {'entry':'100000','stop':'90000','target':'120000','budget':'10',
+                              'loss_per_unit':'10190','candidate_quantity':'.000981',
                               'outlay':'98.1981','planned_loss':'9.99639'}.items():
             self.assertEqual(s[name],D(expected),name)
         self.assertEqual(s['limiters'],['risk'])
-        self.assertEqual(s['candidates']['risk']['numerator'],'1000')
+        self.assertEqual(s['candidates']['risk']['numerator'],'1')
         self.assertEqual(s['candidates']['risk']['denominator'],'1019')
-        self.assertGreater((s['candidate_quantity']+D('.001'))*s['loss_per_unit'],s['budget'])
+        self.assertGreater((s['candidate_quantity']+D('.000001'))*s['loss_per_unit'],s['budget'])
 
     def test_non_decimal_step_and_reference_btc_case(self):
-        config=replace(self.config,instrument_filters=InstrumentFilters(D('.000003'),D('.000003'),D('0')))
+        config=replace(self.config,instrument_filters=InstrumentFilters(D('.000000003'),D('.000000003'),D('0')))
         s=evaluate(config,self.snapshot)['sizing']
-        self.assertEqual(s['candidate_quantity'],D('.981354'))
-        self.assertEqual(Fraction(s['candidate_quantity'])/Fraction(D('.000003')),s['increments'])
+        self.assertEqual(s['candidate_quantity'],D('.000981354'))
+        self.assertEqual(Fraction(s['candidate_quantity'])/Fraction(D('.000000003')),s['increments'])
         self.assertEqual(s['planned_loss'],D('9.99999726'))
         config=replace(config,instrument_filters=InstrumentFilters(D('.000001'),D('.000001'),D('0')))
         snapshot=replace(self.snapshot,price=D('100000'))
@@ -83,18 +83,18 @@ class RiskSizingTests(unittest.TestCase):
     def test_limiters_tie_and_minimum_equality_and_no_increase(self):
         config=replace(self.config,fee_rate=D('0'),risk=replace(self.config.risk,
                        risk_fraction=D('.1'),exposure_fraction=D('.2'),stop_fraction=D('.5')),
-                       instrument_filters=InstrumentFilters(D('.001'),D('2'),D('200')))
+                       instrument_filters=InstrumentFilters(D('.000001'),D('.002'),D('200')))
         snapshot=replace(self.snapshot,free_balance=D('200'))
         d=evaluate(config,snapshot)
         self.assertTrue(d['approved'])
-        self.assertEqual(d['approved_quantity'],D('2'))
+        self.assertEqual(d['approved_quantity'],D('.002'))
         self.assertEqual(d['sizing']['limiters'],['risk','exposure','cash'])
-        for filters in (InstrumentFilters(D('.001'),D('2.001'),D('200')),
-                        InstrumentFilters(D('.001'),D('2'),D('200.01'))):
+        for filters in (InstrumentFilters(D('.000001'),D('.002001'),D('200')),
+                        InstrumentFilters(D('.000001'),D('.002'),D('200.01'))):
             rejected=evaluate(replace(config,instrument_filters=filters),snapshot)
             self.assertEqual(rejected['reason'],'BELOW_MINIMUMS')
             self.assertEqual(rejected['approved_quantity'],0)
-            self.assertEqual(rejected['sizing']['candidate_quantity'],2)
+            self.assertEqual(rejected['sizing']['candidate_quantity'],D('.002'))
 
     def test_precedence_missing_stale_future_and_snapshot_validation(self):
         cases=[({'daily_blocked':True,'drawdown_blocked':True,'price':None},'DAILY_LOSS_BLOCKED'),
@@ -120,14 +120,14 @@ class RiskSizingTests(unittest.TestCase):
 
     def test_revalidation_keeps_budget_and_bracket(self):
         sizing=evaluate(self.config,self.snapshot)['sizing']
-        reason,details=revalidate(self.config,replace(self.snapshot,price=D('101')),sizing)
+        reason,details=revalidate(self.config,replace(self.snapshot,price=D('101000')),sizing)
         self.assertEqual(reason,'RISK_BUDGET_EXCEEDED')
         self.assertEqual(details['planned_loss'],D('10.978371'))
         self.assertEqual(sizing['budget'],10)
-        self.assertEqual(sizing['stop'],90)
-        for price in (D('90'),D('120')):
+        self.assertEqual(sizing['stop'],90000)
+        for price in (D('90000'),D('120000')):
             self.assertEqual(revalidate(self.config,replace(self.snapshot,price=price),sizing)[0],'ENTRY_OUTSIDE_BRACKET')
-        self.assertIsNone(revalidate(self.config,replace(self.snapshot,price=D('99')),sizing)[0])
+        self.assertIsNone(revalidate(self.config,replace(self.snapshot,price=D('99000')),sizing)[0])
         self.assertEqual(revalidate(self.config,replace(self.snapshot,daily_blocked=True),sizing)[0],'DAILY_LOSS_BLOCKED')
         with self.assertRaises(ValidationError):revalidate(self.config,self.snapshot,{'candidate_quantity':True})
 
@@ -235,7 +235,8 @@ class RiskReplayTests(unittest.TestCase):
         self.assertEqual(session.fees,D('.18639'))
         self.assertEqual(summary['analysis']['metrics']['realized_pnl']['value'],D('-9.99639'))
         order=session.orders[0]
-        self.assertEqual(order.quantity,D('.981'))
+        self.assertEqual(order.quantity,D('.000981'))
+        self.assertEqual([fill.price for fill in session.fills],[D('100000'),D('90000')])
         self.assertEqual(order.sizing['budget'],10)
         cr=ar=ca=aa=cash=asset=D('0')
         for row in session.ledger.entries:
@@ -251,7 +252,7 @@ class RiskReplayTests(unittest.TestCase):
         self.assertEqual(reserve.cash_reserved_after,D('98.1981'))
         self.assertEqual(reserve.cash_after,D('1000'))
         buy=next(e for e in session.ledger.entries if e.side=='BUY')
-        self.assertEqual(buy.asset_reserved_after,D('.981'))
+        self.assertEqual(buy.asset_reserved_after,D('.000981'))
         self.assertEqual(buy.asset_available_after,0)
         self.assertEqual(session.ledger.reconcile()['status'],'PASSED')
         self.assertFalse(summary['risk']['blocks']['daily_blocked'])
@@ -292,11 +293,11 @@ class RiskReplayTests(unittest.TestCase):
         self.assertEqual(trade['duration_seconds'],120)
         self.assertEqual(trade['execution_time_model'],'BAR_CLOSE_RESOLUTION')
         marks=[p for p in report(session)['analysis']['equity_curve'] if p['at']==trigger['at']]
-        self.assertTrue(any(p['phase']=='PROTECTION_TRIGGER' and p['mark_price']==90 for p in marks))
+        self.assertTrue(any(p['phase']=='PROTECTION_TRIGGER' and p['mark_price']==90000 for p in marks))
 
     def test_entry_candle_does_not_activate_protection(self):
         candles=list(self.candles)
-        candles[1]=replace(candles[1],high=D('121'),low=D('89'))
+        candles[1]=replace(candles[1],high=D('121000'),low=D('89000'))
         session=self.run_case(candles)
         self.assertEqual(session.balance.cash,D('990.00361'))
         self.assertEqual(session.fills[1].at,self.candles[2].close_time)
@@ -330,22 +331,22 @@ class RiskReplayTests(unittest.TestCase):
         self.assertEqual(session.balance.cash,D('990.00361'))
 
     def test_revalidation_rejects_without_reanchoring_or_fees(self):
-        candles=list(self.candles);candles[1]=replace(candles[1],open=D('101'))
+        candles=list(self.candles);candles[1]=replace(candles[1],open=D('101000'))
         session=self.run_case(candles)
         self.assertFalse(session.fills);self.assertEqual(session.balance.cash,1000)
         self.assertEqual(session.fees,0);self.assertEqual(session.orders[0].reason,'RISK_BUDGET_EXCEEDED')
-        self.assertEqual(session.orders[0].sizing['stop'],90)
+        self.assertEqual(session.orders[0].sizing['stop'],90000)
         self.assertEqual(session.ledger.entries[-1].cash_reserved_after,0)
         self.assertEqual(session.ledger.history[-1]['status'],'RELEASED')
 
     def test_favorable_open_returns_unused_cash_and_preserves_stop(self):
-        candles=list(self.candles);candles[1]=replace(candles[1],open=D('99'))
+        candles=list(self.candles);candles[1]=replace(candles[1],open=D('99000'))
         session=self.run_case(candles)
         buy=next(e for e in session.ledger.entries if e.side=='BUY')
         self.assertEqual(buy.cash_after,D('902.783881'))
         self.assertEqual(buy.cash_reserved_after,0)
-        self.assertEqual(session.orders[0].quantity,D('.981'))
-        self.assertEqual(session.protection_groups[0].stop,D('90'))
+        self.assertEqual(session.orders[0].quantity,D('.000981'))
+        self.assertEqual(session.protection_groups[0].stop,D('90000'))
         self.assertEqual(session.balance.cash,D('990.985591'))
 
     def test_gap_protection_preempts_common_sell_without_double_sale(self):
@@ -361,12 +362,12 @@ class RiskReplayTests(unittest.TestCase):
     def test_common_sell_precedes_range_and_cancel_restores_protection(self):
         sell=action('sell',self.candles[1].close_time,'SELL')
         session=self.run_case(config=replace(self.config,orders=(*self.config.orders,sell)))
-        self.assertEqual(session.fills[1].price,102)
+        self.assertEqual(session.fills[1].price,102000)
         self.assertEqual(session.protection_groups[0].exit_details['exit_origin'],'MANUAL')
         self.assertFalse(any(e['type']=='PROTECTION_TRIGGER' for e in session.events))
         cancel=action('cancel-sell',sell.at_close,'CANCEL',sell.id)
         canceled=self.run_case(config=replace(self.config,orders=(*self.config.orders,sell,cancel)))
-        self.assertEqual(canceled.fills[1].price,90)
+        self.assertEqual(canceled.fills[1].price,90000)
         self.assertEqual(canceled.balance.cash,D('990.00361'))
         self.assertEqual(canceled.ledger.reconcile()['status'],'PASSED')
 
@@ -383,8 +384,8 @@ class RiskReplayTests(unittest.TestCase):
         normal=self.run_case(config=replace(self.config,risk=replace(self.config.risk,daily_loss_fraction=D('.005'))))
         self.assertEqual(report(normal)['exit_code'],0)
         candles=list(self.candles)
-        candles[1]=replace(candles[1],low=D('89'),close=D('90'))
-        candles[2]=replace(candles[2],open=D('95'))
+        candles[1]=replace(candles[1],low=D('89000'),close=D('90000'))
+        candles[2]=replace(candles[2],open=D('95000'))
         sell=action('exit-blocked',candles[1].close_time,'SELL')
         session=self.run_case(candles,replace(self.config,risk=replace(self.config.risk,daily_loss_fraction=D('.005')),
                                               orders=(*self.config.orders,sell)))
@@ -398,7 +399,7 @@ class RiskReplayTests(unittest.TestCase):
         self.assertEqual(session.orders[0].reason,'NO_FUTURE_OPEN')
         self.assertEqual(session.ledger.entries[-1].cash_reserved_after,0)
         opened=self.run_case(self.candles[:2])
-        self.assertEqual(opened.balance.btc,D('.981'))
+        self.assertEqual(opened.balance.btc,D('.000981'))
         self.assertEqual(opened.ledger.entries[-1].asset_reserved_after,0)
         self.assertEqual(opened.protection_groups[0].status,'ENDED_WITH_OPEN_POSITION')
         self.assertEqual(len(opened.fills),1)
@@ -409,10 +410,11 @@ class RiskReplayTests(unittest.TestCase):
 
     def test_sma_signals_are_preserved_and_quantity_is_dynamic(self):
         i=load_inputs(ROOT/'data/fixtures/sprint07-candles.json',ROOT/'experiments/sprint09-sma.json')
-        session=self.run_case(i.candles,i.config)
+        coarse=replace(i.config,instrument_filters=InstrumentFilters(D('.001'),D('.001'),D('0')))
+        session=self.run_case(i.candles,coarse)
         self.assertEqual([o.reason for o in session.orders],['BELOW_MINIMUMS','INSUFFICIENT_ASSET'])
         self.assertEqual(report(session)['exit_code'],2)
-        config=replace(i.config,instrument_filters=InstrumentFilters(D('.000001'),D('.000001'),D('0')))
+        config=i.config
         filled=self.run_case(i.candles,config)
         self.assertEqual(len(filled.fills),2)
         self.assertEqual(filled.fills[0].quantity,D('.000962'))
@@ -443,9 +445,9 @@ class RiskReplayTests(unittest.TestCase):
         strategy=SMAParameters('SMA_CROSS',1,2)
         config=replace(self.config,mode='SMA',orders=(),strategy=strategy)
         candles=[]
-        for index,close in enumerate((D('100'),D('90'),D('110'))):
+        for index,close in enumerate((D('100000'),D('90000'),D('110000'))):
             source=self.candles[index]
-            candles.append(replace(source,open=D('100'),high=max(D('100'),close),low=min(D('100'),close),close=close))
+            candles.append(replace(source,open=D('100000'),high=max(D('100000'),close),low=min(D('100000'),close),close=close))
         skipped=replace(self.candles[-1],open_time=self.candles[-1].open_time+timedelta(minutes=1),
                         close_time=self.candles[-1].close_time+timedelta(minutes=1))
         session=self.run_case((*candles,skipped),config)
@@ -472,7 +474,7 @@ class RiskReplayTests(unittest.TestCase):
         progressive.finish()
         self.assertEqual(canonical(progressive.events),canonical(file_session.events))
         self.assertEqual(canonical(report(progressive)),canonical(report(file_session)))
-        candles=list(self.candles);candles[1]=replace(candles[1],high=D('999'),low=D('1'),volume=D('0'))
+        candles=list(self.candles);candles[1]=replace(candles[1],high=D('999000'),low=D('1000'),volume=D('0'))
         changed=self.run_case(candles)
         fill_seq=next(e['seq'] for e in file_session.events if e['type']=='FILLED')
         self.assertEqual(file_session.events[:fill_seq],changed.events[:fill_seq])
@@ -528,16 +530,16 @@ class RiskReplayTests(unittest.TestCase):
 
     def test_variable_quantities_close_distinct_lots_without_reusing_old_size(self):
         candles=list(self.candles)
-        candles[3]=replace(candles[3],high=D('200'),close=D('200'))
+        candles[3]=replace(candles[3],high=D('200000'),close=D('200000'))
         for minute in (4,5):
             base=self.candles[0]
             candles.append(replace(base,open_time=base.open_time+timedelta(minutes=minute),
                                    close_time=base.close_time+timedelta(minutes=minute),
-                                   open=D('200'),high=D('200'),low=D('200'),close=D('200')))
+                                   open=D('200000'),high=D('200000'),low=D('200000'),close=D('200000')))
         orders=(*self.config.orders,action('second',candles[3].close_time),
                 action('second-exit',candles[4].close_time,'SELL'))
         session=self.run_case(candles,replace(self.config,orders=orders))
-        self.assertEqual([f.quantity for f in session.fills],[D('.981'),D('.981'),D('.485'),D('.485')])
+        self.assertEqual([f.quantity for f in session.fills],[D('.000981'),D('.000981'),D('.000485'),D('.000485')])
         self.assertEqual(len(session.ledger.trades),2)
         self.assertEqual(session.balance.cash,D('989.80961'))
         self.assertEqual(session.balance.btc,0)
@@ -573,8 +575,8 @@ class RiskOutputTests(unittest.TestCase):
             self.assertEqual(result.stderr,'')
             self.assertIn('SPRINT09_V1' if fmt=='json' else 'Risco',result.stdout)
         sma=cli('demonstrar','--risco','--estrategia','sma','--formato','json')
-        self.assertEqual(sma.returncode,2,sma.stderr)
-        self.assertIn('BELOW_MINIMUMS',sma.stderr)
+        self.assertEqual(sma.returncode,0,sma.stderr)
+        self.assertEqual(sma.stderr,'')
         i=inputs();m=manifest(i)
         self.assertEqual(m,manifest(i,analysis=True))
         for value in (False,None,1,'true'):
@@ -612,7 +614,7 @@ class RiskOutputTests(unittest.TestCase):
     def test_benchmarks_have_filters_without_strategy_risk_or_stops(self):
         i=inputs();s=replay(i.candles,i.config);r=report(s)
         hold=r['analysis']['benchmarks'][1]
-        self.assertEqual(hold['parameters']['quantity'],D('9.99'))
+        self.assertEqual(hold['parameters']['quantity'],D('.00999'))
         self.assertEqual(hold['parameters']['cash_residual'],D('.001'))
         self.assertEqual(hold['parameters']['risk_policy'],'PASSIVE_NO_STOPS_OR_BLOCKS')
         self.assertEqual(hold['metrics']['closed_trade_count']['value'],0)
@@ -633,7 +635,7 @@ class RiskOutputTests(unittest.TestCase):
         self.assertIn('memória',html.lower())
         self.assertIn('Risco, reservas',md)
         self.assertIn('variável por risco',html)
-        self.assertIn('1000/1019',html)
+        self.assertIn('1/1019',html)
         self.assertIn('Incrementos',md)
         self.assertNotIn('quantidade fixa: None',md)
         self.assertNotIn('piso no quantum 0.000000000001 BTC',md)

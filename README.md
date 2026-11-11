@@ -499,12 +499,10 @@ python -m replayquant demonstrar --risco --formato markdown
 python -m replayquant demonstrar --risco --estrategia sma --formato json
 ```
 
-O último comando **retorna 2 por política**, como esperado: com o step fictício
-0.001 BTC da configuração de demonstração, o orçamento não permite quantidade
-mínima para a compra a preços próximos de 102000 USDT/BTC. A decisão é
-`BELOW_MINIMUMS`; a saída SMA posterior informa `INSUFFICIENT_ASSET`. Não houve
-posição, taxa ou perda nesse cenário. Um teste com filtros menores valida o
-caminho SMA com compra/venda efetivas, sem alterar os candles da Sprint 07.
+Todos os comandos retornam **0**. A demonstração SMA usa step e mínimo fictícios
+de 0.000001 BTC: compra/vende 0.000962 BTC, paga 0.1924 USDT em taxas e termina
+com 999.8076 USDT e BTC zero. Um teste com filtros maiores (0.001 BTC) preserva
+a cobertura de rejeição por `BELOW_MINIMUMS` e `INSUFFICIENT_ASSET`.
 
 Salvar onze artefatos e um HTML em caminhos novos:
 
@@ -524,10 +522,10 @@ python -m replayquant executar --dados data/fixtures/sprint09-candles-ambiguo.js
 python -m replayquant executar --dados data/fixtures/sprint09-candles-gap.json --config experiments/sprint09-manual.json --saida "$cenarios_sprint09_dir/gap" --formato html > "$cenarios_sprint09_dir/gap.html"
 ```
 
-Os três comandos retornam **0**, com compra de **0.981 BTC** e posição final
-zerada. No alvo, a venda ocorre a 120 e o caixa final é **1019.40418 USDT**.
+Os três comandos retornam **0**, com compra de **0.000981 BTC** e posição final
+zerada. No alvo, a venda ocorre a 120000 e o caixa final é **1019.40418 USDT**.
 No cenário ambíguo, o candle toca stop e alvo; a convenção **STOP_FIRST** resolve
-a venda a 90, com caixa final **990.00361 USDT**. No gap, a abertura a 80 define
+a venda a 90000, com caixa final **990.00361 USDT**. No gap, a abertura a 80000 define
 a execução do stop, com caixa final **980.20342 USDT**: a perda realizada supera
 o orçamento planejado de 10 USDT. A tabela abaixo detalha resultados e taxas.
 
@@ -537,19 +535,18 @@ Sprint 07, usados também pela demonstração SMA com risco:
 ```bash
 sma_sprint09_dir=$(mktemp -d)
 python -m replayquant executar --dados data/fixtures/sprint07-candles.json --config experiments/sprint09-sma.json --saida "$sma_sprint09_dir/execucao" --formato html > "$sma_sprint09_dir/relatorio.html"
-echo "Código de saída SMA: $? (esperado: 2)"
+echo "Código de saída SMA: $? (esperado: 0)"
 ```
 
-Esse exemplo usa janelas SMA **2/3**, produz oito avaliações da estratégia e dois
-sinais, mas nenhum preenchimento: BUY é rejeitada por `BELOW_MINIMUMS` e SELL
-por `INSUFFICIENT_ASSET`. O código **2** é esperado; o HTML e os onze artefatos
-são gravados, com caixa final **1000 USDT**, BTC e taxas zero. Em scripts com
-`set -e`, trate esse retorno esperado para continuar após o comando.
+Esse exemplo usa janelas SMA **2/3**, produz oito avaliações, dois sinais e dois
+preenchimentos. O código esperado é **0**, com caixa final **999.8076 USDT**,
+BTC zero e taxas de **0.1924 USDT**.
 
-Use `sprint09-candles.json` e suas variantes para os exemplos manuais acima.
-Combinar `sprint06-candles.json` com `sprint09-manual.json` também rejeita a
-entrada por `BELOW_MINIMUMS`: ao preço de 100000, a quantidade permitida pelo
-risco é aproximadamente 0.000981354269 BTC, abaixo do mínimo e step de 0.001 BTC.
+As fixtures manuais da Sprint 09 usam a mesma escala de preços das sprints
+06–08: referência inicial de 100000 USDT/BTC. Seus OHLC foram multiplicados
+por 1000 e os filtros step/mínimo divididos por 1000 (0.000001 BTC), preservando
+os valores em USDT dos cenários manuais. A unidade continua USDT/BTC; os dados
+são fictícios. As duas configurações da Sprint 09 usam esses mesmos filtros.
 
 `executar` reconhece o modo pelo schema da configuração; não recebe `--risco`.
 `demonstrar --risco` não grava artefatos. `--analise` é redundante no schema 4 e
@@ -575,14 +572,14 @@ ou floats para decidir. Um mínimo não autoriza aumentar a compra.
 
 | Cenário fictício | q BTC | Caixa final USDT | Resultado realizado USDT | Taxas USDT |
 | --- | --- | --- | --- | --- |
-| Stop a 90 | 0.981 | 990.00361 | -9.99639 | 0.18639 |
-| Gap: stop executado a 80 | 0.981 | 980.20342 | -19.79658 | 0.17658 |
-| Alvo a 120 | 0.981 | 1019.40418 | 19.40418 | 0.21582 |
-| Ambos os níveis: STOP_FIRST | 0.981 | 990.00361 | -9.99639 | 0.18639 |
+| Stop a 90000 | 0.000981 | 990.00361 | -9.99639 | 0.18639 |
+| Gap: stop executado a 80000 | 0.000981 | 980.20342 | -19.79658 | 0.17658 |
+| Alvo a 120000 | 0.000981 | 1019.40418 | 19.40418 | 0.21582 |
+| Ambos os níveis: STOP_FIRST | 0.000981 | 990.00361 | -9.99639 | 0.18639 |
 
-Capital inicial 1000, orçamento 10, compra a 100, stop 90, alvo 120 e taxa 0.001.
+Capital inicial 1000, orçamento 10, compra a 100000, stop 90000, alvo 120000 e taxa 0.001.
 Aceitar BUY reserva 98.1981 USDT, preservando caixa total e patrimônio. Preencher
-consome o desembolso, abre BTC 0.981 e cria **uma** reserva de BTC compartilhada
+consome o desembolso, abre BTC 0.000981 e cria **uma** reserva de BTC compartilhada
 por stop e alvo. Disponível + reservado = total em cada moeda; não somar reserva
 ao patrimônio novamente. Cancelar/rejeitar/liberar não cobra taxa nem inventa fill.
 Abertura favorável devolve a diferença; desfavorável revalida risco/caixa antes de
