@@ -576,6 +576,30 @@ sintéticos construídos para um saldo positivo, sem evidência de rentabilidade
 em mercado real. O dimensionamento variável explica a diferença em relação
 ao exemplo da Sprint 07, que usa quantidade fixa.
 
+### Sprint 09 com resultado equivalente ao Sprint 07
+
+A configuração `experiments/sprint09-sma-equivalente-sprint07.json` deriva do
+exemplo expandido acima. Altera somente `risk_fraction` para **0.011** (1,1%)
+e os filtros `step`/`min_quantity` para **0.001 BTC**. Nos 240 candles de
+`data/fixtures/sprint07-candles-expandido.json`, o orçamento permite candidatos
+entre 0.001 e 0.002 BTC; o arredondamento para baixo pelo step resulta em
+**0.001 BTC nas três compras**, reproduzindo o lote fixo do Sprint 07.
+Taxas, slippage, janelas SMA e demais parâmetros de risco permanecem iguais
+aos do exemplo expandido do Sprint 09.
+
+```bash
+sma_equivalente_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint09-sma-equivalente-sprint07.json --saida "$sma_equivalente_dir/execucao" --formato html > "$sma_equivalente_dir/relatorio.html"
+```
+
+Neste cenário, ambos produzem seis fills com os mesmos horários, lados,
+quantidades, preços e taxas: lucro líquido de **0.90155066834 USDT**, taxas
+**0.60339361166 USDT**, caixa final **1000.90155066834 USDT**, BTC zero e código
+**0**. A equivalência é financeira; schema, identificadores e registros de risco
+continuam distintos. O Sprint 09 mantém o dimensionamento por risco e suas
+proteções: outros candles ou capital inicial podem produzir lotes diferentes,
+rejeições ou saídas por stop/alvo. Esses filtros são fictícios para a demonstração.
+
 As fixtures manuais da Sprint 09 usam a mesma escala de preços das sprints
 06–08: referência inicial de 100000 USDT/BTC. Seus OHLC foram multiplicados
 por 1000 e os filtros step/mínimo divididos por 1000 (0.000001 BTC), preservando
