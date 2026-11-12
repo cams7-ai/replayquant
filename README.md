@@ -542,6 +542,40 @@ Esse exemplo usa janelas SMA **2/3**, produz oito avaliações, dois sinais e do
 preenchimentos. O código esperado é **0**, com caixa final **999.8076 USDT**,
 BTC zero e taxas de **0.1924 USDT**.
 
+### Exemplo lucrativo com 240 candles e risco
+
+Use `experiments/sprint09-sma-expandido.json` com a fixture
+`data/fixtures/sprint07-candles-expandido.json`, reutilizada sem alterações.
+A configuração schema 4 combina SMA **9/21**, capital de **1000 USDT**,
+taxa e slippage de **0.001** cada. Mantém os controles do Sprint 09:
+risco de 1% por entrada, exposição máxima de 100%, stop de 10%, alvo de 20%,
+limite de perda diária de 3%, drawdown de 5% e validade do preço de 60 segundos.
+O lote é dimensionado pelo risco, com step e mínimo de 0.000001 BTC.
+
+```bash
+sma_lucrativo_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint09-sma-expandido.json --saida "$sma_lucrativo_dir/execucao" --formato html > "$sma_lucrativo_dir/relatorio.html"
+```
+
+Resultado validado: código **0**, 240 avaliações, seis preenchimentos,
+três operações encerradas e posição final zerada. Todas as saídas ocorrem
+por sinal SMA; stop e alvo ficam ativos, mas não são tocados neste cenário.
+
+| Operação | Compra UTC | Venda UTC | Quantidade BTC | Lucro líquido USDT |
+| --- | --- | --- | --- | --- |
+| 1 | 12:38 | 13:25 | 0.000981 | +0.72353529352539 |
+| 2 | 14:20 | 15:02 | 0.000983 | +0.76172522186290 |
+| 3 | 15:26 | 15:39 | 0.000971 | -0.59318054728265 |
+
+Caixa final: **1000.89207996810564 USDT**. Lucro realizado:
+**0.89207996810564 USDT**, retorno de aproximadamente **0.089208%**.
+Taxas totais: **0.59031179959436 USDT**; impacto de slippage:
+**0.59031387230 USDT**, ambos já considerados no resultado líquido.
+As operações acontecem em 01/01/2026. Trata-se de uma demonstração com dados
+sintéticos construídos para um saldo positivo, sem evidência de rentabilidade
+em mercado real. O dimensionamento variável explica a diferença em relação
+ao exemplo da Sprint 07, que usa quantidade fixa.
+
 As fixtures manuais da Sprint 09 usam a mesma escala de preços das sprints
 06–08: referência inicial de 100000 USDT/BTC. Seus OHLC foram multiplicados
 por 1000 e os filtros step/mínimo divididos por 1000 (0.000001 BTC), preservando
