@@ -37,13 +37,13 @@ class RiskSession(Session):
         if not isinstance(config, RiskConfig):
             raise ValidationError('RiskSession exige RiskConfig')
         super().__init__(config, run_id)
-        self._ledger = ReservationLedger.initial(config.initial_cash, run_id)
+        self._ledger = ReservationLedger.initial(config.initial_cash, run_id, base_asset=getattr(config, 'base_asset', None))
         self._guard = EquityGuard(config.risk)
         self.strategy = None
         if config.mode == 'SMA':
             self.strategy = SMACross(config.strategy)
         elif config.mode == 'STRATEGY':
-            self.strategy = REGISTRY.create(config.strategy)
+            self.strategy = REGISTRY.create(config.strategy, getattr(config, 'base_asset', 'BTC'))
         self.status, self.diagnostic = 'RUNNING', None
         self._mark = self._mark_at = None
         self._group = None
@@ -51,6 +51,8 @@ class RiskSession(Session):
         self._risk_records = []
         self._actions = {}
         self._seen_opens, self._seen_candles, self._signals = {}, {}, {}
+        self._source_candles = ()
+        self._input_diagnostics = ()
         self._last_exit_candle = None
         self._eligible = None
 
@@ -78,6 +80,18 @@ class RiskSession(Session):
         super()._emit(at, event_type, **payload)
         self._events[-1]['schema_version'] = self.config.schema_version
 
+    def _validate_market_event(self, event):
+        if (event.source, event.symbol, event.interval) != (self.config.source, self.config.symbol, self.config.interval):
+            raise ValidationError('Evento de instrumento divergente')
+        if self.config.schema_version == 6:
+            from .models import Opening
+            opening = event.at if isinstance(event, Opening) else event.open_time
+            closing = opening + timedelta(minutes=1)
+            if not self.config.instrument.contains(opening, closing):
+                raise ValidationError('INSTRUMENT_UNAVAILABLE')
+            if not self.config.window.contains(opening, closing):
+                raise ValidationError('OUTSIDE_WINDOW')
+
     def _active(self):
         if self.status == 'INTERRUPTED':
             raise ValidationError('Sessão interrompida; iniciar nova execução')
@@ -90,7 +104,7 @@ class RiskSession(Session):
 
     @financial
     def _observe(self, at, phase):
-        equity = self.balance.cash + (self.balance.btc*self._mark if self.balance.btc else ZERO)
+        equity = self.balance.cash + (self.balance.asset_quantity*self._mark if self.balance.asset_quantity else ZERO)
         seq = len(self._events)
         guard = self._guard.observe(at, seq, phase, equity)
         if len(guard.history) != len(self._guard.history):
@@ -101,10 +115,10 @@ class RiskSession(Session):
     def snapshot(self, at, *, own_reserve=ZERO):
         current = self._guard.current or {}
         balance = self._ledger.entries[-1]
-        exposure = self.balance.btc*self._mark if self.balance.btc else ZERO
+        exposure = self.balance.asset_quantity*self._mark if self.balance.asset_quantity else ZERO
         return RiskSnapshot(self.balance.cash+exposure, balance.cash_available_after+own_reserve,
                             exposure, self._mark, self._mark_at, at, self.pending is not None,
-                            self.balance.btc != 0, self._opening is not None and self._last_exit_candle == self._opening.at,
+                            self.balance.asset_quantity != 0, self._opening is not None and self._last_exit_candle == self._opening.at,
                             current.get('daily_blocked', False), current.get('drawdown_blocked', False))
 
     def _adjust(self, kind, at, operations):
@@ -152,8 +166,8 @@ class RiskSession(Session):
             reason, q, sizing = decision['reason'], decision['approved_quantity'], decision['sizing']
         else:
             reason = ('ORDER_PENDING' if self.pending else
-                      ('INSUFFICIENT_ASSET' if self.balance.btc == 0 else None))
-            q = self.balance.btc if reason is None else ZERO
+                      ('INSUFFICIENT_ASSET' if self.balance.asset_quantity == 0 else None))
+            q = self.balance.asset_quantity if reason is None else ZERO
             decision = dict(approved=reason is None, reason=reason, approved_quantity=q, snapshot=self.snapshot(request.at_close),
                             sizing=None, sizing_reason='EXIT_NOT_SIZED')
         self._emit(request.at_close, 'SUBMITTED', order_id=request.id, side=request.side, quantity=q)
@@ -229,6 +243,7 @@ class RiskSession(Session):
         self._active()
         if not isinstance(opening, Opening):
             raise ValidationError('Abertura exige Opening sem OHLCV futuro')
+        self._validate_market_event(opening)
         if opening.at in self._seen_opens:
             if self._seen_opens[opening.at] != opening:
                 raise ValidationError('Abertura conflitante')
@@ -275,6 +290,7 @@ class RiskSession(Session):
         self._active()
         if not isinstance(candle, Candle):
             raise ValidationError('Fechamento exige Candle')
+        self._validate_market_event(candle)
         if candle.key in self._seen_candles:
             if self._seen_candles[candle.key] != candle:
                 raise ValidationError('Candle conflitante')
@@ -306,7 +322,7 @@ class RiskSession(Session):
             self._cancel_order(self.pending, at, 'CANCELED', 'PROTECTIVE_EXIT_PREEMPTED')
         oid = f"{self._group.id}:{details['exit_origin']}"
         request = RiskRequest(oid, at, 'SELL')
-        self._orders[oid] = RiskOrder(request, 'NEW', len(self._events), quantity=self.balance.btc)
+        self._orders[oid] = RiskOrder(request, 'NEW', len(self._events), quantity=self.balance.asset_quantity)
         self._pending = oid
         self._emit(at, 'ACCEPTED', order_id=oid, status='NEW', reason=details['exit_origin'])
         self._adjust('TRANSFER', at, [replace(self._asset_reservation(), owner_id=oid)])
@@ -343,7 +359,7 @@ class RiskSession(Session):
                                sizing['stop'], sizing['target'], sizing['budget'], fill.at,
                                self._opening.at+timedelta(minutes=1))
             operations = (replace(self._cash_reservation(fill.order_id), status='CONSUMED'),
-                          Reservation(f'{group.id}:asset', group.id, 'BTC', fill.quantity))
+                          Reservation(f'{group.id}:asset', group.id, getattr(self.config, 'base_asset', 'BTC'), fill.quantity))
         else:
             group = replace(self._group, status='CLOSED', exit_details=dict(
                 **details, effective_price=fill.price, at=fill.at, order_id=fill.order_id,
@@ -374,11 +390,19 @@ class RiskSession(Session):
         if self.finished:
             return
         self._active()
-        if self._closed is None or self._opening.at != self._closed.open_time:
+        if self._closed is None:
+            if self.config.schema_version == 6 and self._opening is None:
+                self._finished, self.status = True, 'UNAVAILABLE'
+                return
+            raise ValidationError('Encerrar exige último fechamento')
+        if self._opening.at != self._closed.open_time:
             raise ValidationError('Encerrar exige último fechamento')
         at = self._closed.close_time
         if self.pending:
-            self._cancel_order(self.pending, at, 'UNEXECUTED', 'NO_FUTURE_OPEN')
+            reason = 'NO_FUTURE_OPEN'
+            if self.config.schema_version == 6 and self.config.instrument.available_until == at:
+                reason = 'INSTRUMENT_UNAVAILABLE'
+            self._cancel_order(self.pending, at, 'UNEXECUTED', reason)
         if self._group:
             self._adjust('RELEASE', at, [replace(self._asset_reservation(), status='RELEASED')])
             self._groups = (*self._groups, replace(self._group, status='ENDED_WITH_OPEN_POSITION'))
@@ -394,7 +418,17 @@ def replay_risk(candles, config, run_id='api', diagnostics=()):
         closes = {c.close_time for c in validated}
         if any(r.at_close not in closes for r in config.orders):
             raise ValidationError('Ação deve referenciar fechamento existente')
+    from .coverage import matching, eligible
+    matching(validated, config)
+    source_candles = validated
+    if config.schema_version == 6:
+        validated = tuple(c for c in validated if eligible(c, config))
     session = RiskSession(config, run_id)
+    session._source_candles = source_candles
+    session._input_diagnostics = (*diagnostics, *duplicates)
+    if not validated:
+        session.finish()
+        return session
     schedule, by_close = defaultdict(list), defaultdict(list)
     for request in config.orders:
         schedule[request.at_close].append(request)

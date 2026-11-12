@@ -2,12 +2,12 @@
 from dataclasses import dataclass, replace, asdict
 from decimal import Decimal
 from .models import Fill, side_value
-from .portfolio import Balance, after_fill
+from .portfolio import Balance, AssetBalance, after_fill
 from .validation import ValidationError, decimal_value, identifier, utc, financial
 from .metrics import integer, seconds, percentage
 
 ZERO = Decimal('0')
-PORTFOLIOS = ('STRATEGY', 'HOLD_USDT', 'BUY_HOLD_BTC')
+PORTFOLIOS = ('STRATEGY', 'HOLD_USDT', 'BUY_HOLD_BTC', 'BUY_HOLD_ASSET')
 
 
 @dataclass(frozen=True)
@@ -120,9 +120,17 @@ class Ledger:
     open_reference: Decimal | None = None
     realized: Decimal = ZERO
     slippage: Decimal = ZERO
+    base_asset: str | None = None
+
+    def __post_init__(self):
+        if self.base_asset is not None:
+            from .catalog import asset_code
+            asset_code(self.base_asset)
+            if self.base_asset == 'USDT':
+                raise ValidationError('Ativo base deve diferir da cotação')
 
     @classmethod
-    def initial(cls, capital, run_id, portfolio='STRATEGY', at=None):
+    def initial(cls, capital, run_id, portfolio='STRATEGY', at=None, base_asset=None):
         decimal_value(capital, 'capital', positive=True)
         identifier(run_id, 'run_id')
         if type(portfolio) is not str or portfolio not in PORTFOLIOS:
@@ -132,7 +140,7 @@ class Ledger:
         entry = Entry(3, run_id, portfolio, f'{portfolio}:initial', 1, at, 0, 'INITIAL_BALANCE',
                       None, None, None, None, None, None, None, capital, ZERO, ZERO, ZERO,
                       capital, ZERO, ZERO, ZERO)
-        return cls((entry,))
+        return cls((entry,), base_asset=base_asset)
 
     def start(self, at):
         at = utc(at)
@@ -145,7 +153,8 @@ class Ledger:
     @property
     def balance(self):
         row = self.entries[-1]
-        return Balance(row.cash_after, row.asset_after)
+        model = AssetBalance if self.base_asset is not None else Balance
+        return model(row.cash_after, row.asset_after)
 
     @property
     def fees(self):
@@ -174,12 +183,12 @@ class Ledger:
         buy = fill.side == 'BUY'
         delta_cash = -(gross + fill.fee) if buy else gross - fill.fee
         delta_asset = fill.quantity if buy else -fill.quantity
-        projected = Balance(self.balance.cash + delta_cash, self.balance.btc + delta_asset)
+        projected = type(self.balance)(self.balance.cash + delta_cash, self.balance.asset_quantity + delta_asset)
         if projected != after:
             raise ValidationError('RECONCILIATION_FAILED: proposta de saldo divergente')
         trades, realized = self.trades, self.realized
         if buy:
-            if self.open_fill is not None or self.balance.btc != 0:
+            if self.open_fill is not None or self.balance.asset_quantity != 0:
                 raise ValidationError('POSITION_OPEN')
             basis, opened, ref = gross + fill.fee, fill, reference_price
             lot_id = f'{fill.id}:lot'
@@ -202,9 +211,10 @@ class Ledger:
         row = Entry(3, self.entries[0].run_id, self.entries[0].portfolio,
                     f'{self.entries[0].portfolio}:{fill.id}', len(self.entries)+1, fill.at, source_event_seq,
                     'FILL', fill.order_id, fill.id, lot_id, fill.side, fill.quantity, reference_price,
-                    fill.price, delta_cash, delta_asset, gross, fill.fee, after.cash, after.btc,
+                    fill.price, delta_cash, delta_asset, gross, fill.fee, after.cash, after.asset_quantity,
                     self.fees + fill.fee, basis)
-        return Ledger((*self.entries, row), trades, opened, ref, realized, self.slippage + impact)
+        return replace(self, entries=(*self.entries, row), trades=trades, open_fill=opened,
+                       open_reference=ref, realized=realized, slippage=self.slippage + impact)
 
     @financial
     def reconcile(self):

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "catalog_id": "SPRINT11_FICTICIA_V1",
+  "instruments": [
+    {
+      "source": "FICTICIA",
+      "symbol": "BTCUSDT",
+      "base_asset": "BTC",
+      "quote_asset": "USDT",
+      "intervals": [
+        "1m"
+      ],
+      "available_from": "2026-01-01T12:00:00+00:00",
+      "available_until": null,
+      "instrument_filters": {
+        "step": "0.000001",
+        "min_quantity": "0.000001",
+        "min_notional": "0"
+      },
+      "rules_basis": "SYNTHETIC_ASSUMPTION",
+      "rules_as_of": "2026-01-01T00:00:00+00:00",
+      "rules_source": "Hipótese didática da fixture Sprint 11"
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "base_asset": "ETH",
+      "quote_asset": "USDT",
+      "intervals": [
+        "1m"
+      ],
+      "available_from": "2026-01-01T12:00:00+00:00",
+      "available_until": null,
+      "instrument_filters": {
+        "step": "0.00001",
+        "min_quantity": "0.00001",
+        "min_notional": "0"
+      },
+      "rules_basis": "SYNTHETIC_ASSUMPTION",
+      "rules_as_of": "2026-01-01T00:00:00+00:00",
+      "rules_source": "Hipótese didática da fixture Sprint 11"
+    }
+  ]
+}

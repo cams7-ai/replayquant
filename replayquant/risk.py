@@ -88,8 +88,8 @@ def size_at(config, snapshot, entry=None, stop=None):
         count -= 1
         q = Decimal(count)*config.instrument_filters.step
     return dict(entry=entry, stop=stop, target=target, budget=budget, loss_per_unit=loss,
-                max_exposure=cap, candidates={k: ratio(v, 'BTC') for k, v in candidates.items()},
-                raw_quantity=ratio(raw, 'BTC'), increments=count, candidate_quantity=q,
+                max_exposure=cap, candidates={k: ratio(v, getattr(config, 'base_asset', 'BTC')) for k, v in candidates.items()},
+                raw_quantity=ratio(raw, getattr(config, 'base_asset', 'BTC')), increments=count, candidate_quantity=q,
                 limiters=[k for k, v in candidates.items() if v == raw],
                 outlay=outlay, planned_loss=planned_loss, notional=q*entry,
                 slippage_exit_loss=outlay-q*stop*(1-config.slippage_rate)*(1-config.fee_rate))

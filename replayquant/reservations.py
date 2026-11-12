@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 from .ledger import Entry, Ledger
 from .metrics import integer
+import re
 from .validation import ValidationError, decimal_value, financial, identifier, utc
 
 ZERO = Decimal('0')
@@ -19,7 +20,7 @@ class Reservation:
     def __post_init__(self):
         identifier(self.id)
         identifier(self.owner_id, 'owner_id')
-        if self.currency not in ('USDT', 'BTC') or self.status not in ('HELD', 'CONSUMED', 'RELEASED'):
+        if (type(self.currency) is not str or re.fullmatch(r'[A-Z0-9]{1,30}', self.currency) is None) or self.status not in ('HELD', 'CONSUMED', 'RELEASED'):
             raise ValidationError('Moeda/estado de reserva inválido')
         decimal_value(self.quantity, 'reservation.quantity', positive=True, bounded=False)
 
@@ -69,8 +70,8 @@ class ReservationLedger:
     history: tuple[dict, ...] = ()
 
     @classmethod
-    def initial(cls, capital, run_id, at=None):
-        funds = Ledger.initial(capital, run_id, at=at)
+    def initial(cls, capital, run_id, at=None, base_asset=None):
+        funds = Ledger.initial(capital, run_id, at=at, base_asset=base_asset)
         row = ReserveEntry(**{**asdict(funds.entries[0]), 'schema_version': 4},
                            cash_available_delta=capital, cash_available_after=capital)
         return cls(funds, (row,))
@@ -124,6 +125,8 @@ class ReservationLedger:
         states = {r.id: r for r in self.reservations}
         history = list(self.history)
         for index, operation in enumerate(operations):
+            if operation.currency not in ('USDT', self.funds.base_asset or 'BTC'):
+                raise ValidationError('Reserva de outro instrumento')
             old = states.get(operation.id)
             if old is None:
                 if operation.status != 'HELD':
@@ -140,9 +143,9 @@ class ReservationLedger:
                                 quantity=operation.quantity, status=operation.status,
                                 record_type=values['entry_type']))
         cash_reserved = sum((r.quantity for r in states.values() if r.status == 'HELD' and r.currency == 'USDT'), ZERO)
-        asset_reserved = sum((r.quantity for r in states.values() if r.status == 'HELD' and r.currency == 'BTC'), ZERO)
+        asset_reserved = sum((r.quantity for r in states.values() if r.status == 'HELD' and r.currency == (self.funds.base_asset or 'BTC')), ZERO)
         cash_available = funds.balance.cash - cash_reserved
-        asset_available = funds.balance.btc - asset_reserved
+        asset_available = funds.balance.asset_quantity - asset_reserved
         if cash_available < 0 or asset_available < 0:
             raise ValidationError('Reserva excede saldo total')
         first = operations[0] if operations else None
@@ -214,6 +217,8 @@ class ReservationLedger:
             if min(ca, cr, aa, ar) < 0 or ca+cr != cash or aa+ar != asset:
                 raise ValidationError('RECONCILIATION_FAILED: disponível + reservado != total')
             for operation in row.reservation_operations:
+                if operation.currency not in ('USDT', self.funds.base_asset or 'BTC'):
+                    raise ValidationError('RECONCILIATION_FAILED: moeda de reserva')
                 previous = states.get(operation.id)
                 if previous is None and operation.status != 'HELD':
                     raise ValidationError('RECONCILIATION_FAILED: reserva sem origem')
@@ -229,7 +234,7 @@ class ReservationLedger:
                                       status=operation.status, record_type=row.entry_type))
                 states[operation.id] = operation
             held_cash = sum((r.quantity for r in states.values() if r.currency == 'USDT' and r.status == 'HELD'), ZERO)
-            held_asset = sum((r.quantity for r in states.values() if r.currency == 'BTC' and r.status == 'HELD'), ZERO)
+            held_asset = sum((r.quantity for r in states.values() if r.currency == (self.funds.base_asset or 'BTC') and r.status == 'HELD'), ZERO)
             if (held_cash, held_asset) != (cr, ar):
                 raise ValidationError('RECONCILIATION_FAILED: titularidade da reserva')
             if row.entry_type == 'FILL':
@@ -242,7 +247,7 @@ class ReservationLedger:
             source, at = row.source_event_seq, row.at
         if tuple(states.values()) != self.reservations or tuple(histories) != self.history or fill_ids != {e.execution_id for e in self.funds.entries if e.entry_type == 'FILL'}:
             raise ValidationError('RECONCILIATION_FAILED: histórico final das reservas')
-        if (cash, asset) != (self.balance.cash, self.balance.btc):
+        if (cash, asset) != (self.balance.cash, self.balance.asset_quantity):
             raise ValidationError('RECONCILIATION_FAILED: ledger financeiro e contas')
         result.update(cash_available=ca, cash_reserved=cr, asset_available=aa,
                       asset_reserved=ar, reservation_entries_checked=len(self.entries))

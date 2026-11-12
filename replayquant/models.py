@@ -10,6 +10,13 @@ def instrument(source, symbol, interval):
         raise ValidationError("Instrumento permitido: FICTICIA/BTCUSDT/1m")
 
 
+
+def market_instrument(source, symbol, interval):
+    import re
+    if (type(source) is not str or source != 'FICTICIA' or type(symbol) is not str
+            or re.fullmatch(r'[A-Z0-9]{2,30}', symbol) is None or type(interval) is not str or interval != '1m'):
+        raise ValidationError('Identidade de mercado inválida')
+
 def side_value(side):
     if type(side) is not str or side not in ("BUY", "SELL"):
         raise ValidationError("side deve ser BUY ou SELL")
@@ -30,7 +37,7 @@ class Candle:
     is_closed: bool
 
     def __post_init__(self):
-        instrument(self.source, self.symbol, self.interval)
+        market_instrument(self.source, self.symbol, self.interval)
         for name in ("open_time", "close_time"):
             object.__setattr__(self, name, utc(getattr(self, name), name))
         if self.open_time.second or self.open_time.microsecond:
@@ -63,7 +70,7 @@ class Opening:
     price: Decimal
 
     def __post_init__(self):
-        instrument(self.source, self.symbol, self.interval)
+        market_instrument(self.source, self.symbol, self.interval)
         object.__setattr__(self, "at", utc(self.at))
         if self.at.second or self.at.microsecond:
             raise ValidationError("Abertura deve estar alinhada ao minuto")

@@ -76,6 +76,8 @@ class Session:
         self._active()
         if not isinstance(opening, Opening):
             raise ValidationError("Abertura exige Opening sem OHLCV futuro")
+        if (opening.source, opening.symbol, opening.interval) != (self.config.source, self.config.symbol, self.config.interval):
+            raise ValidationError('Evento de instrumento divergente')
         if self._opening is not None:
             if self._closed is None or self._closed.open_time != self._opening.at:
                 raise ValidationError("Fechar candle anterior antes de abrir outro")
@@ -114,9 +116,9 @@ class Session:
         reason = None
         if self._pending is not None:
             reason = "ORDER_PENDING"
-        elif request.side == "BUY" and self.balance.btc != 0:
+        elif request.side == "BUY" and self.balance.asset_quantity != 0:
             reason = "POSITION_OPEN"
-        elif request.side == "SELL" and self.balance.btc < self.config.quantity:
+        elif request.side == "SELL" and self.balance.asset_quantity < self.config.quantity:
             reason = "INSUFFICIENT_ASSET"
         elif request.side == "BUY":
             if self.balance.cash < self._estimate_buy(self._closed.close):
@@ -152,7 +154,7 @@ class Session:
         gross, fee = fill.price * fill.quantity, fill.fee
         if fill.side == "BUY" and self.balance.cash < gross + fee:
             reason = "INSUFFICIENT_CASH"
-        elif fill.side == "SELL" and self.balance.btc < fill.quantity:
+        elif fill.side == "SELL" and self.balance.asset_quantity < fill.quantity:
             reason = "INSUFFICIENT_ASSET"
         if reason:
             self._orders[order.request.id] = replace(order, status="REJECTED", reason=reason)
@@ -204,6 +206,8 @@ def replay(candles, config, run_id="api", diagnostics=()):
     if isinstance(config, SMAConfig):
         return replay_sma(candles, config, run_id, diagnostics)
     validated, duplicate_diagnostics = validate_series(candles)
+    from .coverage import matching
+    matching(validated, config)
     validate_schedule(validated, config)
     session = Session(config, run_id)
     for diagnostic in (*diagnostics, *duplicate_diagnostics):
@@ -283,7 +287,7 @@ class SMASession(Session):
         try:
             candidate = deepcopy(self.strategy)
             evaluation = candidate.on_close(candle)
-            if evaluation["side"] == "BUY" and self._pending is None and self.balance.btc == 0:
+            if evaluation["side"] == "BUY" and self._pending is None and self.balance.asset_quantity == 0:
                 self._estimate_buy(candle.close)
         except Exception:
             self._interrupt("INDICATOR_OR_ARITHMETIC_FAILURE")
@@ -324,9 +328,9 @@ class SMASession(Session):
         reason = None
         if self.pending is not None:
             reason = "ORDER_PENDING"
-        elif side == "BUY" and self.balance.btc != 0:
+        elif side == "BUY" and self.balance.asset_quantity != 0:
             reason = "POSITION_OPEN"
-        elif side == "SELL" and self.balance.btc < self.config.quantity:
+        elif side == "SELL" and self.balance.asset_quantity < self.config.quantity:
             reason = "INSUFFICIENT_ASSET"
         elif side == "BUY" and self.balance.cash < self._estimate_buy(self._closed.close):
             reason = "INSUFFICIENT_CASH"
@@ -370,6 +374,8 @@ class SMASession(Session):
 
 def replay_sma(candles, config, run_id="api", diagnostics=()):
     validated, duplicates = validate_series(candles, contiguous=False)
+    from .coverage import matching
+    matching(validated, config)
     session = SMASession(config, run_id)
     by_close = defaultdict(list)
     for diagnostic in (*diagnostics, *duplicates):

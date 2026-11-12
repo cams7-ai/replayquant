@@ -13,8 +13,10 @@ QUANTUM = Decimal('0.000000000001')
 @financial
 def _prepare_benchmarks(config, run_id, events):
     opening = next(e for e in events if e['type'] == 'OPEN')
-    cash = Ledger.initial(config.initial_cash, run_id, 'HOLD_USDT', opening['at'])
-    hold = Ledger.initial(config.initial_cash, run_id, 'BUY_HOLD_BTC', opening['at'])
+    base = getattr(config, 'base_asset', None)
+    name = 'BUY_HOLD_ASSET' if base is not None else 'BUY_HOLD_BTC'
+    cash = Ledger.initial(config.initial_cash, run_id, 'HOLD_USDT', opening['at'], base_asset=base)
+    hold = Ledger.initial(config.initial_cash, run_id, name, opening['at'], base_asset=base)
     price = effective_price(opening['price'], 'BUY', config.slippage_rate)
     ideal = Fraction(config.initial_cash) / (Fraction(price) * (1 + Fraction(config.fee_rate)))
     filters = getattr(config, 'instrument_filters', None)
@@ -33,7 +35,7 @@ def _prepare_benchmarks(config, run_id, events):
         if quantity < filters.min_quantity or quantity*price < filters.min_notional:
             return [(cash, None, {}), (hold, 'BENCHMARK_BELOW_MINIMUMS', details)]
     gross = price * quantity
-    fill = Fill('BUY_HOLD_BTC:entry:fill', 'BUY_HOLD_BTC:entry', 'BUY', quantity, price,
+    fill = Fill(f'{name}:entry:fill', f'{name}:entry', 'BUY', quantity, price,
                 gross * config.fee_rate, opening['at'])
     hold = hold.prepare(fill, opening['price'], opening['seq'])
     details['cash_residual'] = hold.balance.cash

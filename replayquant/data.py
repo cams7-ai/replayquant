@@ -41,7 +41,7 @@ def validate_schedule(candles, config):
         raise ValidationError("at_close deve referenciar fechamento existente")
 
 
-def parse_candles(raw, *, contiguous=True):
+def parse_candles(raw, *, contiguous=True, catalog=None):
     envelope = strict_json(raw)
     fields(envelope, {"schema_version", "candles"}, "dados")
     version(envelope["schema_version"])
@@ -55,14 +55,42 @@ def parse_candles(raw, *, contiguous=True):
             values[name] = datetime_text(values[name], name)
         for name in ("open", "high", "low", "close", "volume"):
             values[name] = decimal_text(values[name], name)
-        result.append(Candle(**values))
+        candle = Candle(**values)
+        if catalog is None:
+            from .models import instrument
+            instrument(candle.source, candle.symbol, candle.interval)
+        else:
+            from .catalog import Catalog
+            if not isinstance(catalog, Catalog):
+                raise ValidationError('Esperado Catalog')
+            catalog.resolve(candle.source, candle.symbol, candle.interval)
+        result.append(candle)
     return validate_series(result, contiguous=contiguous)
 
 
-def parse_config(raw):
+def parse_config(raw, catalog=None):
     envelope = strict_json(raw)
     if type(envelope) is not dict or type(envelope.get("schema_version")) is not int:
         raise ValidationError("schema_version exige inteiro 1, 2, 4 ou 5")
+    if envelope["schema_version"] == 6:
+        from .catalog import Catalog, parse_window
+        from .catalog_config import CatalogConfig
+        if not isinstance(catalog, Catalog):
+            raise ValidationError('Schema 6 exige catálogo explícito')
+        names = {'schema_version', 'mode', 'source', 'symbol', 'interval', 'window',
+                 'initial_cash', 'fee_rate', 'slippage_rate', 'risk', 'strategy'}
+        fields(envelope, names, 'configuração catálogo')
+        values = {k: envelope[k] for k in names if k != 'schema_version'}
+        definition = catalog.resolve(values['source'], values['symbol'], values['interval'])
+        for key in ('initial_cash', 'fee_rate', 'slippage_rate'):
+            values[key] = decimal_text(values[key], key)
+        fields(values['risk'], {f.name for f in dataclass_fields(RiskParameters)}, 'risk')
+        values['risk'] = RiskParameters(**{k: decimal_text(v, k) for k, v in values['risk'].items()})
+        values['strategy'] = parse_strategy(values['strategy'])
+        values['window'] = parse_window(values['window'])
+        return CatalogConfig(**values, catalog=catalog, instrument_filters=definition.instrument_filters)
+    if catalog is not None:
+        raise ValidationError('Catálogo exige configuração schema 6')
     if envelope["schema_version"] in (4, 5):
         return parse_risk_config(envelope)
     if envelope["schema_version"] == 2:
@@ -99,20 +127,30 @@ class Inputs:
     config_hash: str
 
 
-def load_inputs(data_path, config_path):
+def load_inputs(data_path, config_path, catalog_path=None, *, catalog=None):
     # Os mesmos bytes alimentam parser e hash, evitando releitura inconsistente.
     data_raw = Path(data_path).read_bytes()
     config_raw = Path(config_path).read_bytes()
-    config = parse_config(config_raw)
-    candles, diagnostics = parse_candles(data_raw, contiguous=not (isinstance(config, SMAConfig) or (isinstance(config, RiskConfig) and config.mode != 'MANUAL')))
+    if catalog_path is not None:
+        from .catalog import load_catalog
+        if catalog is not None:
+            raise ValidationError('Forneça um único catálogo')
+        catalog = load_catalog(catalog_path)
+    config = parse_config(config_raw, catalog=catalog)
+    candles, diagnostics = parse_candles(data_raw, contiguous=not (isinstance(config, SMAConfig) or (isinstance(config, RiskConfig) and config.mode != 'MANUAL')), catalog=catalog)
+    from .coverage import matching
+    matching(candles, config)
     if isinstance(config, RiskConfig) and config.mode == 'MANUAL':
         closes = {c.close_time for c in candles}
         if any(r.at_close not in closes for r in config.orders):
             raise ValidationError('Ação deve referenciar fechamento existente')
     if isinstance(config, Config):
         validate_schedule(candles, config)
-    return Inputs(candles, config, diagnostics, sha256(data_raw).hexdigest(),
-                  sha256(config_raw).hexdigest())
+    config_hash = sha256(config_raw).hexdigest()
+    if getattr(config, 'schema_version', None) == 6:
+        from .reporting import canonical
+        config_hash = sha256(canonical(config)).hexdigest()
+    return Inputs(candles, config, diagnostics, sha256(data_raw).hexdigest(), config_hash)
 
 
 def parse_risk_config(envelope):

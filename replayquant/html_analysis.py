@@ -6,7 +6,10 @@ from .reporting import canonical
 
 
 def analysis_html(value, library_loaded=False):
-    from .html_report import table
+    from .html_report import table as original_table
+    base = value.get('base_asset', 'BTC')
+    def table(headers, rows, caption):
+        return original_table([h.replace('BTC', base) for h in headers], rows, caption)
     a = value['analysis']
     parts = ['<section class="panel" id="analise"><h2>Patrimônio, métricas e referências</h2>',
              f"<p>Estado {escape(value['status'])} · Escopo {a['scope']} · Política {a['position_at_end']}</p>",
@@ -31,7 +34,7 @@ def analysis_html(value, library_loaded=False):
             (b['portfolio'], '#64748b' if b['portfolio'] == 'HOLD_USDT' else '#9260b8', b['equity_curve']) for b in a['benchmarks']]:
         if not curve:
             continue
-        label = {'STRATEGY': 'Estratégia', 'HOLD_USDT': 'Manter USDT', 'BUY_HOLD_BTC': 'Comprar e manter BTC'}[name]
+        label = {'STRATEGY': 'Estratégia', 'HOLD_USDT': 'Manter USDT', 'BUY_HOLD_BTC': 'Comprar e manter BTC', 'BUY_HOLD_ASSET': 'Comprar e manter ' + base}[name]
         parts.extend([f'<article class="equity-panel"><h3>{label} ({name})</h3>',
                       '<p class="muted">Patrimônio bruto em USDT · Índice de evento; detalhes em UTC</p>',
                       f'<button class="equity-fit" id="equity-fit-{name}" type="button">Ver curva completa</button>',
@@ -51,9 +54,9 @@ def analysis_html(value, library_loaded=False):
     parts.extend([f'<script id="equity-data" type="application/json">{script_json(datasets)}</script>',
                   f'<script id="equity-controller">{(ASSETS/"equity.js").read_text(encoding="utf-8")}</script>',
                   '<h3>Reconciliação e memória de cálculo</h3>',
-                  f"<p>Taxa: {a['execution_cost_policy']['fee_rate']} · Slippage: {a['execution_cost_policy']['slippage_rate']} · Quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] not in (4, 5) else 'variável por risco'} BTC</p>",
+                  f"<p>Taxa: {a['execution_cost_policy']['fee_rate']} · Slippage: {a['execution_cost_policy']['slippage_rate']} · Quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] not in (4, 5, 6) else 'variável por risco'} {base}</p>",
                   f"<p>Reconciliação: {a['reconciliation']['status']} · Capital inicial {value['initial_cash']} USDT · "
-                  f"Caixa reconstruído {a['reconciliation']['reconstructed_cash']} USDT · BTC {a['reconciliation']['reconstructed_asset']}</p>",
+                  f"Caixa reconstruído {a['reconciliation']['reconstructed_cash']} USDT · {base} {a['reconciliation']['reconstructed_asset']}</p>",
                   '<details><summary>Todos os pontos exatos da estratégia</summary>',
                   table(('Ponto', 'UTC', 'Fase', 'Caixa USDT', 'BTC', 'Marca USDT/BTC', 'Base USDT', 'Realizado USDT', 'Não realizado USDT', 'Patrimônio USDT', 'Liquidação hipotética USDT'),
                         ((p['point_seq'], p['at'], p['phase'], p['cash_total'], p['asset_quantity'],
@@ -72,7 +75,7 @@ def analysis_html(value, library_loaded=False):
                   '<h3>Posição aberta</h3>'])
     if a['open_position']:
         pos = a['open_position']
-        parts.append(f"<p>{pos['quantity']} BTC · Base {pos['cost_basis']} USDT · Não realizado {pos['unrealized_pnl']} USDT · "
+        parts.append(f"<p>{pos['quantity']} {base} · Base {pos['cost_basis']} USDT · Não realizado {pos['unrealized_pnl']} USDT · "
                      f"Taxa hipotética de saída {pos['hypothetical_exit_fee']} USDT · Slippage hipotético {pos['hypothetical_exit_slippage']} USDT (não pagos).</p>")
     else:
         parts.append('<p>Posição zerada, sem liquidação adicional.</p>')

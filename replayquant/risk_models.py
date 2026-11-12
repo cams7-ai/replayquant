@@ -69,7 +69,7 @@ class RiskConfig:
     strategy: SMAParameters | StrategySpec | None = None
 
     def __post_init__(self):
-        instrument(self.source, self.symbol, self.interval)
+        self._validate_instrument()
         if type(self.mode) is not str or self.mode not in ('MANUAL', 'SMA', 'STRATEGY'):
             raise ValidationError('mode exige MANUAL, SMA ou STRATEGY')
         decimal_value(self.initial_cash, 'initial_cash', positive=True)
@@ -98,6 +98,9 @@ class RiskConfig:
                 raise ValidationError('Roteiro fora de ordem')
             seen[request.id], previous = request, request.at_close
 
+
+    def _validate_instrument(self):
+        instrument(self.source, self.symbol, self.interval)
 
     @property
     def schema_version(self):

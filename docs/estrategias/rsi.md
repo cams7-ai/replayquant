@@ -21,3 +21,14 @@ Com período 2 e limiares 30/70, a fixture comum produz RSI 0, 200/3, 600/7, 40 
 A suavização conserva influência da inicialização. O experimento com período 14 encontrou diferenças exatas em todos os 40 pontos comparáveis usando históricos de 0 ou 10 candles contra a referência de 50. Os sinais desse trecho coincidiram. O indicador alimenta o coordenador de risco existente, que pode rejeitar seus sinais.
 
 Configuração em `experiments/sprint10-rsi.json`. Resultados e limites em [Validação](../sprint10-validacao.md).
+
+## Instrumentos do catálogo na Sprint 11
+
+O schema 6 resolve o instrumento pelo catálogo e usa a mesma regra versionada
+em uma sessão independente por par. Quantidades e volumes usam a moeda base,
+e preços e médias de preços usam USDT/base. Ganhos/perdas médios do RSI seguem
+essa unidade, enquanto o próprio RSI permanece em pontos de 0 a 100.
+A disponibilidade e a janela são aplicadas antes do aquecimento. Uma listagem
+tardia pode mudar os valores iniciais e os sinais. O histórico de outro par
+não entra na recorrência. Custos e risco continuam no coordenador existente.
+Consulte [Sprint 11](../sprint11.md) e [validação](../sprint11-validacao.md).

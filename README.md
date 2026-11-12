@@ -1,7 +1,7 @@
-# ReplayQuant — Sprints 06 a 10
+# ReplayQuant — Sprints 06 a 11
 
 Laboratório educacional de replay Spot em Python, com candles fictícios e ordens
-manuais ou sinais SMA, EMA e RSI de BTC/USDT. Mostra como um relógio simulado transforma solicitações em
+manuais ou sinais SMA, EMA e RSI, com BTC/USDT e ETH/USDT fictícios. Mostra como um relógio simulado transforma solicitações em
 preenchimentos, taxas e saldos. Funciona localmente com a biblioteca padrão,
 sem rede ou credenciais. A Sprint 09 acrescenta risco e reservas pelo schema 4;
 veja [Risco e saídas protetivas](#sprint-09--risco-e-saídas-protetivas). A Sprint 10 introduz estratégias modulares versionadas pelo schema 5.
@@ -845,3 +845,86 @@ indicadores, decisões de risco, trades, curvas e benchmarks.
 A seleção de parâmetros de EMA/RSI, a tentativa inicial com filtros menores e a
 verificação do SMA estão registradas na seção 8 de
 [validação do Sprint 10](docs/sprint10-validacao.md).
+
+## Sprint 11 — Múltiplos pares e catálogo
+
+O schema 6 executa estratégias em instrumentos resolvidos por um catálogo local.
+As fixtures iniciais usam **BTCUSDT e ETHUSDT fictícios**, com USDT como moeda de
+cotação e candles de um minuto. O comando `comparar` executa uma sessão independente
+para cada combinação de estratégia e par, com **1000 USDT por sessão**.
+
+O catálogo `data/catalogo/sprint11-instrumentos.json` contém moedas base/cotação,
+intervalos, disponibilidade, step, mínimos e origem/data/hipótese das regras.
+Os filtros são sintéticos, identificados como `SYNTHETIC_ASSUMPTION`. Alterar o
+catálogo altera a identidade dos experimentos, inclusive quando a entrada alterada
+não participa daquela sessão. `CURRENT_RULES_ASSUMED_FOR_PERIOD` identifica uma
+hipótese de regras atuais aplicadas ao período.
+
+A configuração schema 6 declara origem, símbolo, intervalo, janela `[start,end)`,
+capital, custos, risco e estratégia. Os filtros vêm do catálogo. Use `--catalogo`
+na execução individual. Os schemas anteriores seguem os caminhos BTC existentes.
+As saídas novas usam `final_balance.asset_quantity`, moeda base explícita e o
+benchmark `BUY_HOLD_ASSET`. A API usa `CatalogConfig`, `Catalog` e `Window` validados,
+com `AssetBalance` para o saldo e a mesma sessão `RiskSession`.
+
+Com `.venv` ativada, execute na raiz. O individual ETH/RSI retorna **0**. As matrizes
+retornam **2**, pois incluem ordens não executadas ou rejeitadas previstas.
+
+```bash
+sprint11_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint11-eth-candles.json --config experiments/sprint11-eth-rsi.json --catalogo data/catalogo/sprint11-instrumentos.json --saida "$sprint11_dir/eth-rsi" --formato html > "$sprint11_dir/eth-rsi.html"
+python -m replayquant comparar --config experiments/sprint11-matriz.json --saida "$sprint11_dir/matriz" --formato html > "$sprint11_dir/matriz.html"
+python -m replayquant comparar --config experiments/sprint11-matriz-parcial.json --saida "$sprint11_dir/parcial" --formato html > "$sprint11_dir/parcial.html"
+```
+
+A matriz canônica tem SMA 2/3, EMA 2/3 e RSI 2 com limiares 30/70, em ambos os pares.
+Usa sete candles de 01/01/2026 12:00–12:07 UTC, taxa de **0.001** e slippage zero.
+A série ETH é a transformação didática BTC/50. O risco e a semente dos indicadores
+estão declarados na receita e nos relatórios.
+
+| Combinação | Caixa final USDT | Ativo final | Patrimônio bruto USDT | Código | Ranking |
+| --- | --- | --- | --- | --- | --- |
+| SMA ou EMA / BTC | 980.06008 | 0.000166 BTC | 993.34008 | 2 | Indisponível, SELL final sem abertura |
+| SMA ou EMA / ETH | 980.06008 | 0.00830 ETH | 993.34008 | 2 | Indisponível, SELL final sem abertura |
+| RSI / BTC | 999.9602 | 0 BTC | 999.9602 | 0 | 1 |
+| RSI / ETH | 999.96012 | 0 ETH | 999.96012 | 0 | 2 |
+
+RSI compra e vende ao mesmo preço por par, com perdas líquidas de 0.0398 e 0.03988
+USDT pelas duas taxas. A diferença resulta dos steps definidos para cada ativo.
+SMA/EMA mantêm posições abertas e marcadas no último fechamento. O ranking usa
+retorno patrimonial exato, com custos pagos, capital, amostra, drawdown e posição
+exibidos. Só entram combinações FULL, concluídas com código 0 e condições/horizontes
+comparáveis. Empates exatos recebem a mesma posição, com salto posterior.
+
+Na matriz parcial, ETH só está disponível de 12:02 a 12:06 UTC. São quatro candles
+para seu aquecimento, sem fills. SMA/EMA não sinalizam e retornam 0. RSI emite SELL
+sem posição e retorna 2. As três linhas ETH têm cobertura PARTIAL e ranking nulo.
+Os valores financeiros BTC permanecem os da matriz canônica.
+
+Candles fora da janela ou disponibilidade são excluídos sem aquecer os indicadores.
+O arquivo inteiro é validado antes do recorte, inclusive identidades estrangeiras.
+Lacunas internas interrompem no prefixo aceito. Uma posição no fim de disponibilidade
+é conservada e marcada no último preço válido. Aberturas posteriores são recusadas.
+Um candle válido ainda pode resolver proteção no fechamento que coincide com o fim
+de disponibilidade, conforme a convenção OHLC da Sprint 09.
+
+Sem candles elegíveis, a combinação fica UNAVAILABLE, código 2, com métricas de
+desempenho nulas e motivo `NO_ELIGIBLE_CANDLES`. O caixa inicial é conservado e
+nenhum benchmark compra. A cobertura distingue janela solicitada, interseção
+elegível, exclusões, duplicatas e lacunas. Não há negociação com preço carregado
+após o horizonte aceito.
+
+O diretório de comparação contém `manifest.json`, `comparison.json`,
+`comparison.csv`, `comparison.md` e onze artefatos por filho em
+`runs/<symbol>/<strategy_id>/`. Os quatro formatos de stdout são texto, JSON,
+Markdown e HTML. O HTML é autossuficiente e tem navegação interna. Cada linha
+representa capital independente, com a política `INDEPENDENT_CAPITAL_PER_RUN`.
+As curvas e lucros das sessões não formam uma carteira única.
+
+Caminhos da receita são resolvidos em relação ao próprio arquivo. A ordem de suas
+listas não altera a identidade lógica ou os filhos. O hash original da receita
+registra essa diferença de proveniência. Repetições da mesma entrada produzem
+artefatos idênticos. Uma falha de gravação conserva o marcador INCOMPLETE.
+
+Consulte [Sprint 11](docs/sprint11.md), [validação](docs/sprint11-validacao.md) e
+[glossário](docs/sprint11-glossario.md).

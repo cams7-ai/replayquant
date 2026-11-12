@@ -72,3 +72,14 @@ Cada avaliação registra indicador pronto, sinal pronto, valores anteriores/atu
 A janela finita elimina a influência de preços mais antigos quando há histórico comum suficiente para as médias atual e anterior. O experimento de aquecimento confirmou igualdade no sufixo comparável. Os exemplos são fictícios e descrevem a regra do indicador.
 
 Configuração executável em `experiments/sprint10-sma.json`. Fórmulas e tabela de conferência em [Sprint 10](../sprint10.md). Resultados observados em [Validação](../sprint10-validacao.md).
+
+## Instrumentos do catálogo na Sprint 11
+
+O schema 6 resolve o instrumento pelo catálogo e usa a mesma regra versionada
+em uma sessão independente por par. Quantidades e volumes usam a moeda base,
+e preços e médias de preços usam USDT/base. Ganhos/perdas médios do RSI seguem
+essa unidade, enquanto o próprio RSI permanece em pontos de 0 a 100.
+A disponibilidade e a janela são aplicadas antes do aquecimento. Uma listagem
+tardia pode mudar os valores iniciais e os sinais. O histórico de outro par
+não entra na recorrência. Custos e risco continuam no coordenador existente.
+Consulte [Sprint 11](../sprint11.md) e [validação](../sprint11-validacao.md).

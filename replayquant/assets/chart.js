@@ -66,9 +66,9 @@
             const c = byTime.get(time);
             if (!c) return;
             const details = [`${utc(time)} · Abertura ${text(c.open)} · Máxima ${text(c.high)} · ` +
-                `Mínima ${text(c.low)} · Fechamento ${text(c.close)} USDT/BTC · Volume ${text(c.volume)} BTC`];
+                `Mínima ${text(c.low)} · Fechamento ${text(c.close)} USDT/${data.base_asset || 'BTC'} · Volume ${text(c.volume)} ${data.base_asset || 'BTC'}`];
             for (const f of fillsByTime.get(time) || []) {
-                details.push(`${f.side === 'BUY' ? 'COMPRA' : 'VENDA'}: ${text(f.quantity)} BTC a ${text(f.price)} USDT/BTC; ` +
+                details.push(`${f.side === 'BUY' ? 'COMPRA' : 'VENDA'}: ${text(f.quantity)} ${data.base_asset || 'BTC'} a ${text(f.price)} USDT/${data.base_asset || 'BTC'}; ` +
                     `taxa ${text(f.fee)} USDT` + (f.execution_time_model === 'BAR_CLOSE_RESOLUTION' ? '; horário modelado; intrabar desconhecido' : '') + (f.net !== null ? `; resultado líquido ${f.net} USDT` : ''));
             }
             readout.textContent = details.join('\n');

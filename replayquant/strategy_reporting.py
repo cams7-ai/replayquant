@@ -35,7 +35,7 @@ def strategy_html(value):
     from .html_report import table
     strategy = value['strategy']
     rsi = strategy['name'] == 'RSI_REVERSION'
-    unit = 'Pontos RSI (0–100)' if rsi else 'USDT/BTC'
+    unit = 'Pontos RSI (0–100)' if rsi else 'USDT/' + value.get('base_asset', 'BTC')
     keys = ('rsi',) if rsi else ('short', 'long')
     series = []
     for key in keys:

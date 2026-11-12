@@ -70,7 +70,7 @@ def chart_data(value):
                            (outcome(trade['net']) if trade else 'neutral'),
                            'net': exact_text(trade['net']) if trade else None,
                            'execution_time_model': execution_details.get(fill['order_id'], {}).get('execution_time_model', 'OPEN_EVENT')})
-    return {'candles': [{**c, 'time': unix_time(c['open_time'])} for c in value.get('candles', [])],
+    return {'base_asset': value.get('base_asset', 'BTC'), 'quote_asset': 'USDT', 'candles': [{**c, 'time': unix_time(c['open_time'])} for c in value.get('candles', [])],
             'executions': executions,
             'trades': [{'buy_time': unix_time(t['buy']['at']), 'sell_time': unix_time(t['sell']['at']),
                         'buy_price': t['buy']['price'], 'sell_price': t['sell']['price'],
@@ -87,6 +87,7 @@ def candle_chart(value):
     if not value.get('candles'):
         return '<section class="panel" id="grafico"><h2>Candles e execuções</h2><p>Nenhum candle fechado disponível para o gráfico.</p></section>'
     trades = closed_trades(value)
+    base = value.get('base_asset', 'BTC')
     library = (ASSETS / LIBRARY).read_text(encoding='utf-8')
     controller = (ASSETS / 'chart.js').read_text(encoding='utf-8')
     if '</script' in library.lower() or '</script' in controller.lower():
@@ -98,8 +99,8 @@ def candle_chart(value):
              '<button type="button" data-chart-action="out" aria-label="Afastar gráfico">Zoom −</button>'
              '<button type="button" data-chart-action="all">Ver tudo</button>'
              '<button type="button" data-chart-action="recent">Últimos 60</button></div>',
-             '<p class="chart-axis-title">Preço (USDT/BTC) · Escala fixa à esquerda</p>',
-             '<div id="candle-chart" class="candle-chart" role="img" aria-label="Candles BTC/USDT com compras, vendas e resultados líquidos" '
+             f'<p class="chart-axis-title">Preço (USDT/{base}) · Escala fixa à esquerda</p>',
+             f'<div id="candle-chart" class="candle-chart" role="img" aria-label="Candles {base}/USDT com compras, vendas e resultados líquidos" '
              'aria-describedby="chart-help"></div>',
              '<p id="chart-error" role="alert" hidden></p>',
              '<noscript><p>Ative JavaScript para visualizar o gráfico. Ordens, execuções e resultados permanecem disponíveis nas tabelas.</p></noscript>',

@@ -37,10 +37,26 @@ def main(argv=None):
             command.add_argument("--risco", action="store_true", help="Demonstração de risco e proteção (Sprint 09)")
             command.add_argument("--estrategia", choices=("sma",), help="Demonstração SMA da Sprint 07")
         if name == "executar":
+            command.add_argument("--catalogo", help="Catálogo local obrigatório para schema 6")
             command.add_argument("--dados", required=True)
             command.add_argument("--config", required=True)
             command.add_argument("--saida", required=True)
+    comparison = commands.add_parser('comparar', help='Matriz de estratégias e pares com capital independente')
+    comparison.add_argument('--config', required=True)
+    comparison.add_argument('--saida', required=True)
+    comparison.add_argument('--formato', choices=('texto','json','markdown','html'), default='texto')
     args = parser.parse_args(argv)
+    if args.command == 'comparar':
+        from .comparison import load_matrix, compare, write_comparison, comparison_html, comparison_markdown
+        try:
+            metadata, summary, runs = compare(load_matrix(args.config))
+            write_comparison(args.saida, metadata, summary, runs)
+            render = {'json': json_text, 'html': comparison_html, 'texto': comparison_markdown, 'markdown': comparison_markdown}
+            sys.stdout.write(render[args.formato](summary))
+            return summary['exit_code']
+        except (ValidationError, OSError, UnicodeError) as exc:
+            print(f'Erro: {exc}', file=sys.stderr)
+            return 1
     if args.command == "demonstrar" and args.formato == "markdown" and not args.analise and not args.risco:
         parser.error("--formato markdown exige --analise")
     try:
@@ -53,7 +69,8 @@ def main(argv=None):
             demo_config = 'experiments/sprint09-sma.json' if sma_demo else 'experiments/sprint09-manual.json'
             demo_data = 'data/fixtures/sprint07-candles.json' if sma_demo else 'data/fixtures/sprint09-candles.json'
         inputs = load_inputs(demo_data if demonstration else args.dados,
-                             demo_config if demonstration else args.config)
+                             demo_config if demonstration else args.config,
+                             catalog_path=None if demonstration else args.catalogo)
         enabled = args.analise or isinstance(inputs.config, RiskConfig)
         if args.formato == 'markdown' and not enabled:
             parser.error('--formato markdown exige --analise ou configuração de risco')

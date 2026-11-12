@@ -67,6 +67,10 @@ def manifest(inputs, analysis=_DEFAULT):
         identity["analysis_policy"] = RISK_POLICY if risk else POLICY
     if risk:
         identity["risk_policy"] = RISK_POLICY
+    if risk and inputs.config.schema_version == 6:
+        identity['catalog'] = inputs.config.catalog
+        identity['instrument'] = inputs.config.instrument
+        identity['window'] = inputs.config.window
     if risk and inputs.config.mode == 'STRATEGY':
         identity['strategy'] = inputs.config.strategy
         identity['indicator_policy'] = inputs.config.strategy.policy
@@ -112,6 +116,12 @@ def manifest(inputs, analysis=_DEFAULT):
         metadata.update(schema_version=5, input_config_schema_version=5,
                         strategy=inputs.config.strategy, indicator_policy=inputs.config.strategy.policy,
                         warmup_candles=inputs.config.strategy.warmup_candles)
+    if risk and inputs.config.schema_version == 6:
+        metadata.update(schema_version=6, input_config_schema_version=6,
+                        catalog=inputs.config.catalog, instrument=inputs.config.instrument,
+                        window=inputs.config.window, base_asset=inputs.config.base_asset,
+                        quote_asset='USDT', symbol=inputs.config.symbol, source=inputs.config.source,
+                        interval=inputs.config.interval, benchmarks=['HOLD_USDT', 'BUY_HOLD_ASSET'])
     return metadata
 
 
@@ -135,7 +145,7 @@ def report(session, analysis=_DEFAULT):
                              "gross": gross, "fee": fill.fee, "cash_amount": cash_amount,
                              "unit": "USDT"})
     if (not interrupted and len(fills) == 2 and fills[0].side == "BUY" and fills[1].side == "SELL"
-            and fills[0].quantity == fills[1].quantity and session.balance.btc == 0):
+            and fills[0].quantity == fills[1].quantity and session.balance.asset_quantity == 0):
         result = calculations[1]["cash_amount"] - calculations[0]["cash_amount"]
         reason = None
     incomplete = any(o.status in ("REJECTED", "UNEXECUTED") for o in session.orders)
@@ -175,6 +185,9 @@ def report(session, analysis=_DEFAULT):
             "Sem reservas, execução parcial, marcação a mercado ou liquidação forçada.",
             "Latência zero entre eventos ordenados; disponibilidade completa assumida no fechamento.",
             "USDT não é o próprio dólar; taxas cobradas em USDT."]
+    if risk and session.config.schema_version == 6 and session.status == 'UNAVAILABLE':
+        from .catalog_reporting import unavailable_report
+        return unavailable_report(summary, session)
     if risk:
         from .risk_reporting import enrich
         return enrich(summary, session)
@@ -194,7 +207,7 @@ def ratio_text(value):
 
 
 def text_report(value):
-    if value.get('schema_version') in (4, 5):
+    if value.get('schema_version') in (4, 5, 6):
         from .exports import markdown_report
         return markdown_report(value)
     if value.get('schema_version') == 3:
@@ -250,7 +263,7 @@ def text_report(value):
 
 def write_artifacts(directory, metadata, session, summary):
     from .exports import analysis_files
-    enriched = summary.get('schema_version') in (3, 4, 5)
+    enriched = summary.get('schema_version') in (3, 4, 5, 6)
     events = [{**e, 'schema_version': summary['schema_version']} for e in session.events] if enriched else session.events
     contents = analysis_files(summary) if enriched else {}
     contents.update({'events.jsonl': ''.join(canonical(e).decode('utf-8') + '\n' for e in events),

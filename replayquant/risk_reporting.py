@@ -43,10 +43,10 @@ def enrich(summary, session):
                    intentions=[e for e in session.events if e['type'] == 'INTENTION'],
                    risk=risk, analysis=a, limitations=LIMITATIONS)
     if session.config.mode == 'STRATEGY':
-        a['ledger_entries'] = [{**asdict(e), 'schema_version': 5} for e in a['ledger_entries']]
+        a['ledger_entries'] = [{**asdict(e), 'schema_version': session.config.schema_version} for e in a['ledger_entries']]
         for benchmark in a['benchmarks']:
-            benchmark['ledger_entries'] = [{**asdict(e), 'schema_version': 5} for e in benchmark['ledger_entries']]
-        risk['reservations'] = [{**row, 'schema_version': 5} for row in risk['reservations']]
+            benchmark['ledger_entries'] = [{**asdict(e), 'schema_version': session.config.schema_version} for e in benchmark['ledger_entries']]
+        risk['reservations'] = [{**row, 'schema_version': session.config.schema_version} for row in risk['reservations']]
         summary.update(strategy=session.config.strategy, indicator_policy=session.config.strategy.policy)
     if interrupted:
         summary.update(round_trip_result=None, round_trip_reason='REPLAY_INTERRUPTED')
@@ -55,11 +55,17 @@ def enrich(summary, session):
         calc.update(reference_price=event['reference_price'], effective_price=fill.price,
                     fee_rate=session.config.fee_rate, slippage_rate=session.config.slippage_rate,
                     execution_time_model=event['execution_time_model'])
+    if session.config.schema_version == 6:
+        from .catalog_reporting import instrument_report
+        instrument_report(summary, session)
     return summary
 
 
 def risk_markdown(summary):
-    from .exports import md_table, cell
+    from .exports import md_table as original_table, cell
+    base = summary.get('base_asset', 'BTC')
+    def md_table(headers, rows):
+        return original_table([h.replace('BTC', base) for h in headers], rows)
     from .reporting import wire, canonical
     risk = wire(summary['risk'])
     lines = ['## Risco, reservas e saídas protetivas', '',
@@ -113,7 +119,10 @@ def _candidate_rows(risk):
 
 
 def risk_html(value):
-    from .html_report import table
+    from .html_report import table as original_table
+    base = value.get('base_asset', 'BTC')
+    def table(headers, rows, caption):
+        return original_table([h.replace('BTC', base) for h in headers], rows, caption)
     risk = value['risk']
     parts = ['<section class="panel risk-panel" id="risco"><h2>Risco, reservas e saídas protetivas</h2>',
              '<p>R = P × r; L = E × (1+f) − S × (1−f); q = floor(min(q_risco, q_exposição, q_saldo)/step) × step.</p>',
@@ -124,7 +133,7 @@ def risk_html(value):
              '<h3>Reservas: titularidade e liberação</h3>',
              table(('UTC','Reserva','Origem','Titular','Moeda','Quantidade','Estado'),
                    ((r['at'],r['reservation_id'],r['from_owner_id'] or '—',r['owner_id'],r['currency'],r['quantity'],r['status']) for r in risk['reservations']), 'Transferências não são custos'),
-             '<h3>Caixa e BTC disponíveis/reservados</h3>',
+             f'<h3>Caixa e {base} disponíveis/reservados</h3>',
              table(('UTC','Fase','Caixa total','Caixa disponível','Caixa reservado','BTC total','BTC disponível','BTC reservado'),
                    ((p['at'],p['phase'],p['cash_total'],p['cash_available'],p['cash_reserved'],p['asset_quantity'],p['asset_available'],p['asset_reserved']) for p in value['analysis']['equity_curve']), 'Disponível + reservado = total'),
              '<h3>Bloqueios persistentes</h3>',

@@ -155,7 +155,8 @@ class Strategy(Protocol):
 
 class ModularStrategy:
     """Fronteira validada e avaliação comum, com decisões racionais exatas."""
-    def __init__(self, spec, indicator):
+    def __init__(self, spec, indicator, base_asset='BTC'):
+        self.base_asset = base_asset
         self.spec = spec
         self.indicator = indicator
         self._seen = {}
@@ -174,14 +175,14 @@ class ModularStrategy:
             raise ValidationError('Estratégia exige fechamentos contíguos e ordenados')
         candidate = deepcopy(self.indicator)
         result = candidate.on_close(candle)
-        unit = 'RSI_POINTS' if self.spec.name == 'RSI_REVERSION' else 'USDT/BTC'
+        unit = 'RSI_POINTS' if self.spec.name == 'RSI_REVERSION' else 'USDT/' + self.base_asset
         keys = ('rsi',) if self.spec.name == 'RSI_REVERSION' else ('short', 'long')
         values = {}
         for key in (*keys, 'previous_rsi', 'avg_gain', 'avg_loss'):
             if key in result and result[key] is not None:
                 raw = result[key]
                 result[key] = presented_ratio(Fraction(int(raw['numerator']), int(raw['denominator'])),
-                                              'USDT/BTC' if key in ('avg_gain', 'avg_loss') else unit)
+                                              'USDT/' + self.base_asset if key in ('avg_gain', 'avg_loss') else unit)
             if key in keys:
                 values[key] = result.get(key)
         ready = all(v is not None for v in values.values())
@@ -215,13 +216,13 @@ class StrategyRegistry:
             raise ValidationError('Registro de estratégia duplicado')
         self._factories[key] = factory
 
-    def create(self, spec: StrategySpec) -> Strategy:
+    def create(self, spec: StrategySpec, base_asset='BTC') -> Strategy:
         if not isinstance(spec, StrategySpec):
             raise ValidationError('Esperado StrategySpec')
         factory = self._factories.get((spec.name, spec.version))
         if factory is None:
             raise ValidationError('Estratégia/versão não registrada')
-        return ModularStrategy(spec, factory(spec.parameters))
+        return ModularStrategy(spec, factory(spec.parameters), base_asset)
 
 
 REGISTRY = StrategyRegistry()

@@ -17,3 +17,14 @@ Com janelas 2/3 e a fixture comum, a quarta observação tem curta=longa=95000. 
 Uma semente diferente pode continuar influenciando valores depois da prontidão mínima. No experimento com janelas 9/21 e 0, 10 ou 50 candles anteriores ao mesmo sufixo, todos os 28 pontos comparáveis das duas comparações apresentaram alguma diferença exata nas médias. Os sinais desse trecho coincidiram. A implementação mantém razões exatas, cujo custo de memória e tamanho cresce com o histórico.
 
 Configuração executável em `experiments/sprint10-ema.json`. O coordenador de risco, ledger, custos, reservas e proteções é compartilhado como implementação com as demais estratégias, em sessões independentes. Resultados e receita do experimento em [Validação](../sprint10-validacao.md).
+
+## Instrumentos do catálogo na Sprint 11
+
+O schema 6 resolve o instrumento pelo catálogo e usa a mesma regra versionada
+em uma sessão independente por par. Quantidades e volumes usam a moeda base,
+e preços e médias de preços usam USDT/base. Ganhos/perdas médios do RSI seguem
+essa unidade, enquanto o próprio RSI permanece em pontos de 0 a 100.
+A disponibilidade e a janela são aplicadas antes do aquecimento. Uma listagem
+tardia pode mudar os valores iniciais e os sinais. O histórico de outro par
+não entra na recorrência. Custos e risco continuam no coordenador existente.
+Consulte [Sprint 11](../sprint11.md) e [validação](../sprint11-validacao.md).

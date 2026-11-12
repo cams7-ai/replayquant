@@ -91,7 +91,7 @@ def portfolio_analysis(ledger, events, config):
     metrics.update(realized_pnl=metric(ledger.realized, 'USDT'),
                    unrealized_pnl=metric(last['unrealized_pnl'], 'USDT'),
                    final_cash=metric(last['cash_total'], 'USDT'),
-                   final_asset_quantity=metric(last['asset_quantity'], 'BTC'),
+                   final_asset_quantity=metric(last['asset_quantity'], getattr(config, 'base_asset', 'BTC')),
                    final_gross_equity=metric(last['gross_equity'], 'USDT'),
                    final_hypothetical_liquidation_equity=metric(last['hypothetical_liquidation_equity'], 'USDT'),
                    portfolio_return_pct=percentage(last['gross_equity']-config.initial_cash, config.initial_cash),

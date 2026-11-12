@@ -77,6 +77,9 @@ def table(headers, rows, caption):
 
 
 def html_report(value):
+    if value['schema_version'] == 6:
+        from .catalog_html import catalog_html
+        return catalog_html(value)
     value = wire(value)
     balance = value["final_balance"]
     complete = value["exit_code"] == 0
