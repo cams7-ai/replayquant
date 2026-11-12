@@ -770,3 +770,78 @@ Consulte [Sprint 10](docs/sprint10.md), [validação](docs/sprint10-validacao.md
 [glossário](docs/sprint10-glossario.md) e as regras de
 [SMA](docs/estrategias/sma.md), [EMA](docs/estrategias/ema.md) e
 [RSI](docs/estrategias/rsi.md).
+
+### Exemplos lucrativos de SMA, EMA e RSI com 240 candles
+
+As configurações `experiments/sprint10-sma-expandido.json`,
+`experiments/sprint10-ema-expandido.json` e
+`experiments/sprint10-rsi-expandido.json` reutilizam, sem alterações,
+`data/fixtures/sprint07-candles-expandido.json`. São 240 candles fictícios de
+01/01/2026 12:00–16:00 UTC. Os parâmetros foram escolhidos nesta mesma fixture
+para demonstrações positivas, sem avaliação em dados separados.
+
+SMA e EMA usam janelas **9/21**. RSI usa período **21**, sobrevenda **30** e
+sobrecompra **70**, com BUY na saída da sobrevenda e SELL na saída da sobrecompra.
+Os três exemplos usam schema 5 e capital próprio de **1000 USDT**. Os custos,
+filtros e limites de risco são os definidos em cada configuração.
+
+| Parâmetro | SMA 9/21 | EMA 9/21 e RSI 21, 30/70 |
+| --- | --- | --- |
+| Taxa por execução | 0 | 0.001 (0,1%) |
+| Slippage por execução | 0 | 0.001 (0,1%) |
+| `step` e `min_quantity` BTC | 0.000001 | 0.001 |
+| `min_notional` USDT | 0 | 0 |
+| Risco por entrada | 1% | 1,1% |
+| Exposição máxima | 100% | 100% |
+| Stop abaixo da entrada estimada | 50% | 10% |
+| Alvo acima da entrada estimada | 90% | 20% |
+| Limite de perda diária | 90% | 3% |
+| Limite de drawdown | 90% | 5% |
+| Idade máxima do preço | 60 segundos | 60 segundos |
+
+EMA e RSI usam os filtros e o risco do cenário equivalente ao Sprint 07,
+produzindo **0.001 BTC por compra** nesta fixture. SMA usa dimensionamento variável
+com incremento menor. As diferenças de resultado incluem os efeitos da estratégia,
+dos custos e do dimensionamento de cada exemplo. Todas as saídas ocorreram por
+sinal da estratégia, sem acionamento de stop/alvo.
+
+Execute com o ambiente ativado, escolhendo diretórios de saída novos.
+
+```bash
+exemplos_sprint10_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint10-sma-expandido.json --saida "$exemplos_sprint10_dir/sma" --formato html > "$exemplos_sprint10_dir/sma.html"
+python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint10-ema-expandido.json --saida "$exemplos_sprint10_dir/ema" --formato html > "$exemplos_sprint10_dir/ema.html"
+python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint10-rsi-expandido.json --saida "$exemplos_sprint10_dir/rsi" --formato html > "$exemplos_sprint10_dir/rsi.html"
+```
+
+| Resultado observado | SMA 9/21 | EMA 9/21 | RSI 21, 30/70 |
+| --- | --- | --- | --- |
+| Caixa inicial USDT | 1000 | 1000 | 1000 |
+| Caixa final USDT | 1000.42208230 | 1000.71085163730 | 1001.93754109984 |
+| Lucro líquido realizado USDT | 0.42208230 | 0.71085163730 | 1.93754109984 |
+| Retorno da carteira % | 0.042208230000 | 0.071085163730 | 0.193754109984 |
+| Taxas pagas USDT | 0 | 0.60322322270 | 0.40114808016 |
+| Impacto de slippage USDT | 0 | 0.60322514 | 0.40115082 |
+| Drawdown máximo % | 0.010099486656 | 0.106425847313 | 0.050896550140 |
+| Operações encerradas | 3, duas vencedoras e uma perdedora | 3, duas vencedoras e uma perdedora | 2, ambas vencedoras |
+| Quantidade final BTC | 0 | 0 | 0 |
+| Código de saída | 0 | 0 | 0 |
+
+Taxas e slippage configurados já estão considerados no lucro líquido. Cada coluna
+de estratégia representa uma carteira independente. Os relatórios HTML incluem candles,
+indicadores, decisões de risco, trades, curvas e benchmarks.
+
+| Estratégia | Compra UTC | Venda UTC | Quantidade BTC | Lucro líquido USDT |
+| --- | --- | --- | --- | --- |
+| SMA | 12:38 | 13:25 | 0.000200 | +0.22783800 |
+| SMA | 14:20 | 15:02 | 0.000200 | +0.23526000 |
+| SMA | 15:26 | 15:39 | 0.000198 | −0.04101570 |
+| EMA | 12:38 | 13:32 | 0.001 | +0.57718991851 |
+| EMA | 14:22 | 15:09 | 0.001 | +0.65256543403 |
+| EMA | 15:25 | 15:38 | 0.001 | −0.51890371524 |
+| RSI | 12:33 | 13:26 | 0.001 | +0.89975380089 |
+| RSI | 14:15 | 14:59 | 0.001 | +1.03778729895 |
+
+A seleção de parâmetros de EMA/RSI, a tentativa inicial com filtros menores e a
+verificação do SMA estão registradas na seção 8 de
+[validação do Sprint 10](docs/sprint10-validacao.md).

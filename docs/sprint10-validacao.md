@@ -100,3 +100,118 @@ A implementação permanece sequencial, com snapshots completos para atomicidade
 O experimento compara regras em fixtures fictícias, com carteiras independentes e cobertura declarada. O diagnóstico de aquecimento compara indicadores em um sufixo comum. Custos, risco e hipóteses de execução seguem as sprints anteriores. Lucratividade não foi usada como condição de aprovação.
 
 As entregas obrigatórias verificadas estão concluídas. Não houve commit, publicação ou negociação externa. Os arquivos auxiliares de `/tmp` podem ser removidos pelo sistema. Este documento preserva os resultados observados e o README fornece as receitas para reproduzi-los.
+
+## 8. Exemplos expandidos lucrativos de SMA, EMA e RSI
+
+Revisão em 12/11/2026, solicitada após a conclusão da sprint. Criadas as configurações
+`experiments/sprint10-ema-expandido.json` e `experiments/sprint10-rsi-expandido.json`,
+com os 240 candles existentes da Sprint 07. A fixture foi comparada por bytes com
+HEAD e permaneceu idêntica. Estes exemplos foram ajustados na própria fixture
+sintética, originalmente construída para demonstrar SMA com resultado positivo.
+
+### Triagem de sinais e tentativas
+
+A inspeção usou os indicadores reais do projeto, sem alterar suas regras, em uma
+lista pequena de parâmetros. Foi examinada EMA 9/21 e as quatro variantes RSI abaixo.
+Esta etapa calculou somente sinais, sem simular carteiras para as variantes descartadas.
+
+| RSI período / sobrevenda / sobrecompra | BUY | SELL | Observação da sequência de sinais |
+| --- | --- | --- | --- |
+| 14 / 30 / 70 | 2 | 3 | SELL adicional às 15:28 |
+| 14 / 30 / 90 | 2 | 2 | Dois pares BUY/SELL |
+| 21 / 30 / 70 | 2 | 2 | Dois pares BUY/SELL, limiares 30/70 |
+| 14 / 40 / 80 | 4 | 2 | Duas compras adicionais após os dois pares iniciais |
+
+Foi escolhido RSI 21 com limiares 30/70. A EMA 9/21 apresentou três pares BUY/SELL.
+As duas configurações foram inicialmente executadas com o risco do exemplo
+`sprint09-sma-expandido.json`, step/mínimo de 0.000001 BTC e risco de 1%.
+
+| Tentativa financeira inicial | Lucro realizado USDT | Caixa final USDT | Código | Diagnóstico |
+| --- | --- | --- | --- | --- |
+| EMA 9/21 | 1.20704256627577 | 1001.20704256627577 | 2 | Terceira compra rejeitada por RISK_BUDGET_EXCEEDED, SELL posterior sem ativo |
+| RSI 21, 30/70 | 1.90667847574062 | 1001.90667847574062 | 0 | Duas operações encerradas |
+
+Para os exemplos finais, foram adotados os mesmos filtros e risco do exemplo
+`sprint09-sma-equivalente-sprint07.json`. O risco de 1,1% e step/mínimo de 0.001 BTC
+produzem lotes de 0.001 BTC e margem para revalidar as aberturas deste cenário.
+A EMA final inclui a terceira operação perdedora e encerra com código 0. A escolha
+não foi feita pelo maior lucro observado.
+
+### Configuração e resultados finais
+
+Capital inicial de 1000 USDT em cada carteira. Taxa e slippage de 0.001 por execução,
+exposição máxima de 100%, stop de 10%, alvo de 20%, perda diária de 3%, drawdown de
+5% e preço com idade máxima de 60 segundos. `min_notional=0`. Indicadores, custos,
+execução e regras financeiras permanecem os implementados na sprint.
+
+| Resultado | EMA 9/21 | RSI 21, 30/70 |
+| --- | --- | --- |
+| Avaliações / sinais / fills | 240 / 6 / 6 | 240 / 4 / 4 |
+| Operações encerradas | 3 | 2 |
+| Caixa final USDT | 1000.71085163730 | 1001.93754109984 |
+| Realizado líquido USDT | 0.71085163730 | 1.93754109984 |
+| Retorno % | 0.071085163730 | 0.193754109984 |
+| Taxas USDT | 0.60322322270 | 0.40114808016 |
+| Impacto de slippage USDT | 0.60322514 | 0.40115082 |
+| Drawdown máximo % | 0.106425847313 | 0.050896550140 |
+| BTC final / código | 0 / 0 | 0 / 0 |
+
+As cinco saídas ocorreram por sinal, sem gatilho protetivo. As duas carteiras e seus
+benchmarks reconciliaram. As operações individuais e os comandos para reproduzir
+os relatórios estão no README, em “Exemplos lucrativos de EMA e RSI com 240 candles”.
+Os resultados líquidos já incluem taxas e slippage.
+
+### Verificação desta revisão
+
+As execuções HTML finais usaram os comandos abaixo e retornaram individualmente 0.
+
+```bash
+.venv/bin/python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint10-ema-expandido.json --saida runs/sprint10-ema-expandido --formato html > runs/sprint10-ema-expandido.html
+.venv/bin/python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint10-rsi-expandido.json --saida runs/sprint10-rsi-expandido --formato html > runs/sprint10-rsi-expandido.html
+```
+
+Cada configuração foi repetida em JSON com `--analise` e diretório novo. Os onze
+artefatos foram comparados por bytes, com igualdade em ambas as estratégias.
+Foram conferidos código 0, lucro realizado positivo, BTC final zero, ausência de
+rejeições, reconciliação, soma dos trades e os valores exibidos no README.
+Os 15 testes existentes da Sprint 10 passaram nesta revisão. `git diff --check`
+também passou. A implementação e os assets não foram alterados nesta revisão.
+
+Os relatórios finais ficam em `runs/sprint10-ema-expandido.html` e
+`runs/sprint10-rsi-expandido.html`, com os respectivos diretórios de artefatos.
+Tentativas iniciais e repetições ficaram em
+`/tmp/replayquant-exemplos-ema-rsi-sbdvd288`, com configurações iniciais e resultados
+em `tentativas.json`. A conferência desta revisão é financeira e estrutural.
+A inspeção visual da seção 6 corresponde à implementação original da sprint.
+
+### Inclusão do SMA na receita expandida
+
+A receita do README passou a incluir `experiments/sprint10-sma-expandido.json`.
+A seção foi atualizada para apresentar três configurações, os parâmetros reais,
+a coluna de resultados SMA e suas três operações. O diretório de saída do comando
+SMA é próprio, `sma`, evitando colisão com a saída `ema`.
+
+O arquivo SMA adicionado usa janelas 9/21, capital de 1000 USDT, taxa/slippage zero,
+step e mínimo de 0.000001 BTC, nocional mínimo zero, risco de 1%, exposição de 100%,
+stop de 50%, alvo de 90%, perda diária e drawdown de 90% e idade máxima de preço de
+60 segundos. Esses parâmetros foram conservados. O README distingue esses valores
+dos filtros, custos e limites usados pelos exemplos EMA/RSI.
+
+Comando efetivamente executado, com retorno **0** e stderr vazio.
+
+```bash
+.venv/bin/python -m replayquant executar --dados data/fixtures/sprint07-candles-expandido.json --config experiments/sprint10-sma-expandido.json --saida runs/sprint10-sma-expandido --formato html > runs/sprint10-sma-expandido.html
+```
+
+Foram observadas 240 avaliações, seis sinais e seis fills, três operações encerradas,
+BTC final zero e caixa **1000.42208230 USDT**. Lucro realizado **0.42208230 USDT**,
+retorno **0.042208230000%**, taxas e slippage zero, drawdown máximo **0.010099486656%**.
+Todas as saídas ocorreram por sinal. As quantidades e resultados foram 0.000200 BTC
+com +0.22783800 USDT, 0.000200 BTC com +0.23526000 USDT e 0.000198 BTC com
+−0.04101570 USDT. A soma reconcilia com o lucro e o saldo final. As reconciliações
+financeira e de reservas passaram. Os onze artefatos e o HTML foram gerados.
+
+A revisão conferiu os parâmetros das três configurações e os valores do README
+contra os relatórios correspondentes. `git diff --check` passou. A diferença entre
+os três resultados inclui custos e dimensionamento distintos, além das regras dos
+indicadores. A revisão alterou documentação e preservou as configurações fornecidas.
