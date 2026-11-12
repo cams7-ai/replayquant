@@ -1,10 +1,10 @@
-# ReplayQuant — Sprints 06 a 09
+# ReplayQuant — Sprints 06 a 10
 
 Laboratório educacional de replay Spot em Python, com candles fictícios e ordens
-manuais ou sinais SMA de BTC/USDT. Mostra como um relógio simulado transforma solicitações em
+manuais ou sinais SMA, EMA e RSI de BTC/USDT. Mostra como um relógio simulado transforma solicitações em
 preenchimentos, taxas e saldos. Funciona localmente com a biblioteca padrão,
 sem rede ou credenciais. A Sprint 09 acrescenta risco e reservas pelo schema 4;
-veja [Risco e saídas protetivas](#sprint-09--risco-e-saídas-protetivas).
+veja [Risco e saídas protetivas](#sprint-09--risco-e-saídas-protetivas). A Sprint 10 introduz estratégias modulares versionadas pelo schema 5.
 
 ## Preparação e demonstração
 
@@ -698,3 +698,75 @@ stop-limit ou recuperação operacional após reinício. A implementação é em
 e prepara snapshots completos; não foi otimizada para grandes históricos.
 Consulte o [glossário](docs/sprint09-glossario.md) e o
 [registro de validação](docs/sprint09-validacao.md).
+
+## Sprint 10 — Estratégias modulares
+
+O schema 5 usa `mode: "STRATEGY"`, risco e análise obrigatórios. Selecione
+`strategy.name`, `strategy.version` e `strategy.parameters`. O registro resolve
+`SMA_CROSS/1`, `EMA_CROSS/1` e `RSI_REVERSION/1`, criando uma instância por sessão.
+Cada execução tem capital próprio, indicadores, ordens e reservas independentes.
+
+SMA e EMA aceitam `short_window`/`long_window`. EMA usa semente SMA e
+`alpha=2/(N+1)`. RSI aceita `period`, `oversold` e `overbought`, suavização de
+Wilder e semente por médias simples. BUY ocorre na saída da sobrevenda e SELL
+na saída da sobrecompra. Os indicadores usam razões exatas. Os gráficos e valores
+decimais são apresentação, com 12 casas HALF_EVEN nos indicadores.
+
+As avaliações registram identidade, parâmetros, candle, disponibilidade, valores
+anteriores/atuais, prontidão e motivo. Os sinais seguem o risco, reservas,
+revalidação e proteções da Sprint 09. A API `RiskSession.submit` aceita ações
+CANCEL no modo STRATEGY para liberar uma pendência pelo coordenador existente.
+
+Com o ambiente ativado, execute na raiz em diretórios novos. Os três primeiros
+comandos retornam **2** pelos motivos esperados abaixo. O quarto retorna **0**.
+
+```bash
+sprint10_dir=$(mktemp -d)
+python -m replayquant executar --dados data/fixtures/sprint10-candles.json --config experiments/sprint10-sma.json --saida "$sprint10_dir/sma" --formato html > "$sprint10_dir/sma.html"
+python -m replayquant executar --dados data/fixtures/sprint10-candles.json --config experiments/sprint10-ema.json --saida "$sprint10_dir/ema" --formato html > "$sprint10_dir/ema.html"
+python -m replayquant executar --dados data/fixtures/sprint10-candles.json --config experiments/sprint10-rsi.json --saida "$sprint10_dir/rsi" --formato html > "$sprint10_dir/rsi.html"
+python -m replayquant executar --dados data/fixtures/sprint10-candles-rsi.json --config experiments/sprint10-rsi.json --saida "$sprint10_dir/rsi-fechado" --formato html > "$sprint10_dir/rsi-fechado.html"
+```
+
+| Cenário | Caixa final USDT | BTC final | Patrimônio bruto USDT | Motivo do código |
+| --- | --- | --- | --- | --- |
+| SMA 2/3, comum | 983.4 | 0.000166 | 996.68 | SELL final sem abertura futura |
+| EMA 2/3, comum | 983.4 | 0.000166 | 996.68 | SELL final sem abertura futura |
+| RSI 2, comum | 1000 | 0 | 1000 | BUY excede risco no gap, SELL sem ativo |
+| RSI 2, abertura contínua | 1000 | 0 | 1000 | Uma operação encerrada, lucro zero |
+
+Capital inicial de 1000 USDT por linha, sete candles de 01/01/2026 12:00–12:07
+UTC, taxas e slippage zero. A exposição aberta de SMA/EMA é marcada no último
+close, com realizado zero e retorno patrimonial −0.332%. O RSI contínuo tem
+retorno zero e drawdown máximo de aproximadamente 0.398406%, pois houve um pico
+patrimonial durante a posição. Os parâmetros amplos de proteção dessas fixtures
+servem à conferência dos indicadores. Resultados positivos não são exigidos.
+
+Os onze artefatos seguem o modo de risco, com schema 5 e políticas financeiras
+herdadas `SPRINT09_V1`. Os CSVs mantêm as colunas financeiras existentes.
+HTML/Markdown incluem identidade, avaliações, risco e resultados. O HTML offline
+acrescenta gráfico de indicadores, com escala RSI 0–100 e limiares. `--analise` é
+redundante e não altera identidade ou artefatos. Os schemas 1, 2 e 4 continuam
+aceitos.
+
+Para investigar a influência da inicialização, execute o diagnóstico sem carteira.
+Ele compara os mesmos 30 candles, do índice 50 ao 79 da fixture expandida,
+após históricos de 0, 10 e 50 candles anteriores. Usa SMA/EMA 9/21 e RSI 14.
+O arquivo de saída deve ser novo.
+
+```bash
+python -m replayquant.warmup --config experiments/sprint10-sma.json --saida "$sprint10_dir/aquecimento-sma.json"
+python -m replayquant.warmup --config experiments/sprint10-ema.json --saida "$sprint10_dir/aquecimento-ema.json"
+python -m replayquant.warmup --config experiments/sprint10-rsi.json --saida "$sprint10_dir/aquecimento-rsi.json"
+```
+
+O JSON contém hash dos dados, parâmetros, cobertura, pontos não comparáveis,
+diferenças absolutas exatas e divergências de sinais. A amostra validada apresentou
+diferenças nos valores de EMA/RSI e nenhuma divergência de sinais. SMA coincidiu
+após aquecimento suficiente. Razões recursivas e snapshots completos podem crescer
+com o histórico, sem otimizações de escala nesta etapa.
+
+Consulte [Sprint 10](docs/sprint10.md), [validação](docs/sprint10-validacao.md),
+[glossário](docs/sprint10-glossario.md) e as regras de
+[SMA](docs/estrategias/sma.md), [EMA](docs/estrategias/ema.md) e
+[RSI](docs/estrategias/rsi.md).

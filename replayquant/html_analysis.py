@@ -51,7 +51,7 @@ def analysis_html(value, library_loaded=False):
     parts.extend([f'<script id="equity-data" type="application/json">{script_json(datasets)}</script>',
                   f'<script id="equity-controller">{(ASSETS/"equity.js").read_text(encoding="utf-8")}</script>',
                   '<h3>Reconciliação e memória de cálculo</h3>',
-                  f"<p>Taxa: {a['execution_cost_policy']['fee_rate']} · Slippage: {a['execution_cost_policy']['slippage_rate']} · Quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] != 4 else 'variável por risco'} BTC</p>",
+                  f"<p>Taxa: {a['execution_cost_policy']['fee_rate']} · Slippage: {a['execution_cost_policy']['slippage_rate']} · Quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] not in (4, 5) else 'variável por risco'} BTC</p>",
                   f"<p>Reconciliação: {a['reconciliation']['status']} · Capital inicial {value['initial_cash']} USDT · "
                   f"Caixa reconstruído {a['reconciliation']['reconstructed_cash']} USDT · BTC {a['reconciliation']['reconstructed_asset']}</p>",
                   '<details><summary>Todos os pontos exatos da estratégia</summary>',

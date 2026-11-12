@@ -23,8 +23,8 @@ def project_curve(ledger, events, config):
     current = initial
     realized = ZERO
     mark = mark_at = None
-    risk = getattr(config, 'mode', None) in ('MANUAL', 'SMA')
-    version = 4 if risk else 3
+    risk = getattr(config, 'mode', None) in ('MANUAL', 'SMA', 'STRATEGY')
+    version = config.schema_version if risk else 3
     points = []
     by_seq = {entry.source_event_seq: entry for entry in ledger.entries[1:]}
     pnl_by_fill = {trade.sell_execution_id: trade.net_pnl for trade in ledger.trades}
@@ -147,7 +147,7 @@ def analyze(session):
                   sampling_policy='INITIAL_OPEN_BEFORE_FILL_FILL_AFTER_CLOSE', no_cash_flows=True,
                   execution_cost_policy=dict(fee_rate=session.config.fee_rate, slippage_rate=session.config.slippage_rate,
                                              strategy_quantity=getattr(session.config, 'quantity', None), fee_currency='USDT'))
-    if getattr(session.config, 'mode', None) in ('MANUAL', 'SMA'):
+    if getattr(session.config, 'mode', None) in ('MANUAL', 'SMA', 'STRATEGY'):
         result['policy_version'] = 'SPRINT09_V1'
         result['sampling_policy'] = 'OPEN_TRIGGER_FILL_CLOSE_AND_RESERVATION_TRANSITIONS'
     return deepcopy(result)

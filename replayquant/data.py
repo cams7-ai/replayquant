@@ -3,6 +3,7 @@ from dataclasses import dataclass, fields as dataclass_fields
 from hashlib import sha256
 from pathlib import Path
 from .models import Candle, Config, Request, SMAConfig, SMAParameters
+from .strategy_models import StrategySpec, CrossParameters, RSIParameters
 from .risk_models import RiskConfig, RiskRequest, InstrumentFilters, RiskParameters
 from .validation import ValidationError, fields, version, strict_json, decimal_text, datetime_text
 
@@ -61,8 +62,8 @@ def parse_candles(raw, *, contiguous=True):
 def parse_config(raw):
     envelope = strict_json(raw)
     if type(envelope) is not dict or type(envelope.get("schema_version")) is not int:
-        raise ValidationError("schema_version exige inteiro 1 ou 2")
-    if envelope["schema_version"] == 4:
+        raise ValidationError("schema_version exige inteiro 1, 2, 4 ou 5")
+    if envelope["schema_version"] in (4, 5):
         return parse_risk_config(envelope)
     if envelope["schema_version"] == 2:
         names = {f.name for f in dataclass_fields(SMAConfig)}
@@ -92,7 +93,7 @@ def parse_config(raw):
 @dataclass(frozen=True)
 class Inputs:
     candles: tuple[Candle, ...]
-    config: Config | SMAConfig
+    config: Config | SMAConfig | RiskConfig
     diagnostics: tuple[dict, ...]
     data_hash: str
     config_hash: str
@@ -103,7 +104,7 @@ def load_inputs(data_path, config_path):
     data_raw = Path(data_path).read_bytes()
     config_raw = Path(config_path).read_bytes()
     config = parse_config(config_raw)
-    candles, diagnostics = parse_candles(data_raw, contiguous=not (isinstance(config, SMAConfig) or (isinstance(config, RiskConfig) and config.mode == 'SMA')))
+    candles, diagnostics = parse_candles(data_raw, contiguous=not (isinstance(config, SMAConfig) or (isinstance(config, RiskConfig) and config.mode != 'MANUAL')))
     if isinstance(config, RiskConfig) and config.mode == 'MANUAL':
         closes = {c.close_time for c in candles}
         if any(r.at_close not in closes for r in config.orders):
@@ -116,8 +117,9 @@ def load_inputs(data_path, config_path):
 
 def parse_risk_config(envelope):
     mode = envelope.get('mode')
-    if mode not in ('MANUAL', 'SMA'):
-        raise ValidationError('mode exige MANUAL ou SMA')
+    allowed = ('STRATEGY',) if envelope['schema_version'] == 5 else ('MANUAL', 'SMA')
+    if type(mode) is not str or mode not in allowed:
+        raise ValidationError('Modo incompatível com schema de configuração')
     names = {'schema_version','mode','source','symbol','interval','initial_cash','fee_rate',
              'slippage_rate','instrument_filters','risk', 'orders' if mode == 'MANUAL' else 'strategy'}
     fields(envelope, names, 'configuração de risco')
@@ -131,6 +133,8 @@ def parse_risk_config(envelope):
     if mode == 'SMA':
         fields(values['strategy'], {'name','short_window','long_window'}, 'strategy')
         values['strategy'] = SMAParameters(**values['strategy'])
+    elif mode == 'STRATEGY':
+        values['strategy'] = parse_strategy(values['strategy'])
     else:
         if type(values['orders']) is not list:
             raise ValidationError('orders exige lista')
@@ -143,3 +147,17 @@ def parse_risk_config(envelope):
                                       item['side'], item.get('target_order_id')))
         values['orders'] = tuple(orders)
     return RiskConfig(**values)
+
+
+def parse_strategy(value):
+    fields(value, {'name', 'version', 'parameters'}, 'strategy')
+    name = value['name']
+    if type(name) is not str or name not in ('SMA_CROSS', 'EMA_CROSS', 'RSI_REVERSION'):
+        raise ValidationError('Estratégia desconhecida')
+    model = RSIParameters if name == 'RSI_REVERSION' else CrossParameters
+    fields(value['parameters'], {f.name for f in dataclass_fields(model)}, 'parameters')
+    parameters = dict(value['parameters'])
+    if model is RSIParameters:
+        for key in ('oversold', 'overbought'):
+            parameters[key] = decimal_text(parameters[key], key)
+    return StrategySpec(name, value['version'], model(**parameters))

@@ -4,7 +4,7 @@
 **Nível** intermediário  
 **Referência** [Planejamento](planejamento.md), seções 4, 10, 21 e 23  
 **Pré-requisitos** Sprints 06 a 09 implementadas e verificadas  
-**Estado** especificação para implementação futura. Os comandos e resultados esperados deste documento ainda deverão ser validados na implementação.
+**Estado** implementação e validação registradas em [sprint10-validacao.md](sprint10-validacao.md). Os contratos e o prompt abaixo ficam preservados como referência da etapa.
 
 ## 1. Objetivo e estado de entrada
 
@@ -134,7 +134,7 @@ Os resultados abaixo são expectativas matemáticas desta especificação. A imp
 
 SMA e EMA geram BUY no fechamento 5 e SELL no fechamento 7. O BUY preenche na abertura do candle 6 a 100000, com quantidade 0.000166 BTC. O SELL final fica não executado, gerando código 2. A posição termina aberta, caixa 983.4 USDT, BTC 0.000166 e patrimônio bruto 996.68 USDT pelo último close de 80000. O stop absoluto é 60000 e o alvo 228000, definidos na avaliação do fechamento 5. A perda planejada na aprovação é 9.96 USDT e, na revalidação, 6.64 USDT. A liberação final de reservas segue a Sprint 09 sem liquidar o ativo.
 
-RSI gera BUY no fechamento 4 e SELL no fechamento 6, com fills nas aberturas 5 e 7, a 120000 e 80000. Na aprovação, orçamento 10 USDT, stop 50000 e quantidade 0.0002 BTC. Na abertura seguinte, a perda planejada seria 14 USDT, excedendo o orçamento. Portanto o BUY é rejeitado na revalidação, sem fill ou taxa. O SELL posterior é rejeitado por ausência de ativo. O resultado financeiro é caixa 1000 USDT e BTC zero, com código 2. Esse caso verifica a integração entre estratégia e revalidação, independentemente dos sinais matemáticos.
+RSI gera BUY no fechamento 4 e SELL no fechamento 6. As aberturas seguintes elegíveis são 5 e 7, a 120000 e 80000, sujeitas à aprovação e revalidação. Na aprovação, orçamento 10 USDT, stop 50000 e quantidade 0.0002 BTC. Na abertura seguinte, a perda planejada seria 14 USDT, excedendo o orçamento. Portanto o BUY é rejeitado na revalidação, sem fill ou taxa. O SELL posterior é rejeitado por ausência de ativo. O resultado financeiro é caixa 1000 USDT e BTC zero, com código 2. Esse caso verifica a integração entre estratégia e revalidação, independentemente dos sinais matemáticos.
 
 ### 6.2. Variante RSI com operação encerrada
 

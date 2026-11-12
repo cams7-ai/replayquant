@@ -75,7 +75,7 @@ def analysis_markdown(summary):
                         b['metrics'].get('portfolio_return_pct', {}).get('value', '—'),
                         b['metrics'].get('paid_fees', {}).get('value', '—'), b['metrics'].get('time_in_position_pct', {}).get('value', '—'), b['reason'] or '—') for b in a['benchmarks'])),
              '', '## Memória de cálculo e reconciliação', '', f"Capital inicial: {value['initial_cash']} USDT.", '',
-             f"Taxa fracionária: {a['execution_cost_policy']['fee_rate']}; slippage: {a['execution_cost_policy']['slippage_rate']}; quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] != 4 else 'variável por risco'} BTC.", '',
+             f"Taxa fracionária: {a['execution_cost_policy']['fee_rate']}; slippage: {a['execution_cost_policy']['slippage_rate']}; quantidade: {a['execution_cost_policy']['strategy_quantity'] if value['schema_version'] not in (4, 5) else 'variável por risco'} BTC.", '',
              f"Reconciliação: {a['reconciliation']['status']}; caixa reconstruído {a['reconciliation']['reconstructed_cash']} USDT; "
              f"BTC reconstruído {a['reconciliation']['reconstructed_asset']}.", '',
              md_table(['Ponto', 'UTC', 'Fase', 'Caixa USDT', 'BTC', 'Marca USDT/BTC', 'Base USDT', 'Realizado USDT', 'Não realizado USDT', 'Patrimônio USDT', 'Liquidação hipotética USDT'],
@@ -108,11 +108,14 @@ def analysis_markdown(summary):
 
 
 def markdown_report(summary):
-    if summary.get('schema_version') not in (3,4):
+    if summary.get('schema_version') not in (3,4,5):
         raise ValidationError('Markdown exige --analise')
-    if summary['schema_version'] == 4:
+    if summary['schema_version'] in (4, 5):
         from .risk_reporting import risk_markdown
-        return f"# ReplayQuant — Sprint 09\n\nExecução: {cell(summary['run_id'])}\n\n" + analysis_markdown(summary) + "\n" + risk_markdown(summary)
+        from .strategy_reporting import strategy_markdown
+        strategy = strategy_markdown(summary) if summary['schema_version'] == 5 else ''
+        sprint = '10' if summary['schema_version'] == 5 else '09'
+        return f"# ReplayQuant — Sprint {sprint}\n\nExecução: {cell(summary['run_id'])}\n\n" + analysis_markdown(summary) + "\n" + strategy + risk_markdown(summary)
     return f"# ReplayQuant — Sprint 08\n\nExecução: {cell(summary['run_id'])}\n\n" + analysis_markdown(summary)
 
 
@@ -145,24 +148,26 @@ def analysis_files(summary):
                                'hypothetical_return_reason': get('hypothetical_liquidation_return_pct', 'reason') or b['reason'],
                                'time_in_position_seconds': get('time_in_position_seconds'), 'time_in_position_pct': get('time_in_position_pct')})
     ledgers = wire(ledgers)
+    if summary['schema_version'] == 5:
+        ledgers = [{**row, 'schema_version': 5} for row in ledgers]
     ledgers.sort(key=lambda e: (e['at'], e['source_event_seq'], PORTFOLIOS.index(e['portfolio']), e['ledger_seq']))
     trades = [{**base, **t, 'return_pct': t['return_pct']['value'],
                'return_numerator': t['return_pct']['numerator'], 'return_denominator': t['return_pct']['denominator']} for t in a['closed_trades']]
     metrics = [{**base, 'scope': a['scope'], 'metric': name, **value} for name, value in sorted(a['metrics'].items())]
     files = {'ledger.jsonl': ''.join(canonical(e).decode('utf-8') + '\n' for e in ledgers),
-            'equity.csv': csv_text(HEADERS['equity.csv'] + (['asset_available','asset_reserved'] if summary['schema_version'] == 4 else []), curves),
+            'equity.csv': csv_text(HEADERS['equity.csv'] + (['asset_available','asset_reserved'] if summary['schema_version'] in (4, 5) else []), curves),
             'trades.csv': csv_text(HEADERS['trades.csv'], trades),
             'metrics.csv': csv_text(HEADERS['metrics.csv'], metrics),
             'benchmarks.csv': csv_text(HEADERS['benchmarks.csv'], benchmark_rows),
             'report.md': markdown_report(summary)}
 
-    if summary['schema_version'] == 4:
+    if summary['schema_version'] in (4, 5):
         files['risk.jsonl'] = ''.join(canonical(r).decode('utf-8')+'\n' for r in summary['risk']['records'])
         files['reservations.jsonl'] = ''.join(canonical(r).decode('utf-8')+'\n' for r in summary['risk']['reservations'])
     return files
 
 
 def analysis_formulas(summary):
-    if summary['schema_version'] == 4:
+    if summary['schema_version'] in (4, 5):
         return [line.replace('piso no quantum 0.000000000001 BTC', 'piso no step fictício configurado') for line in FORMULAS]
     return FORMULAS

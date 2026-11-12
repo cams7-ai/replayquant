@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from .models import SMAParameters, instrument
+from .strategy_models import StrategySpec
 from .validation import ValidationError, decimal_value, identifier, utc
 
 
@@ -65,12 +66,12 @@ class RiskConfig:
     instrument_filters: InstrumentFilters
     risk: RiskParameters
     orders: tuple[RiskRequest, ...] = ()
-    strategy: SMAParameters | None = None
+    strategy: SMAParameters | StrategySpec | None = None
 
     def __post_init__(self):
         instrument(self.source, self.symbol, self.interval)
-        if type(self.mode) is not str or self.mode not in ('MANUAL', 'SMA'):
-            raise ValidationError('mode exige MANUAL ou SMA')
+        if type(self.mode) is not str or self.mode not in ('MANUAL', 'SMA', 'STRATEGY'):
+            raise ValidationError('mode exige MANUAL, SMA ou STRATEGY')
         decimal_value(self.initial_cash, 'initial_cash', positive=True)
         for name in ('fee_rate', 'slippage_rate'):
             if decimal_value(getattr(self, name), name) >= 1:
@@ -82,6 +83,9 @@ class RiskConfig:
         if self.mode == 'SMA':
             if self.orders or not isinstance(self.strategy, SMAParameters):
                 raise ValidationError('SMA exige strategy sem roteiro manual')
+        elif self.mode == 'STRATEGY':
+            if self.orders or not isinstance(self.strategy, StrategySpec):
+                raise ValidationError('STRATEGY exige StrategySpec sem roteiro manual')
         elif self.strategy is not None:
             raise ValidationError('MANUAL não aceita strategy')
         seen, previous = {}, None
@@ -93,6 +97,11 @@ class RiskConfig:
             if previous is not None and request.at_close < previous:
                 raise ValidationError('Roteiro fora de ordem')
             seen[request.id], previous = request, request.at_close
+
+
+    @property
+    def schema_version(self):
+        return 5 if self.mode == 'STRATEGY' else 4
 
 
 @dataclass(frozen=True)

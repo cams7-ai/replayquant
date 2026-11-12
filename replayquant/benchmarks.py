@@ -42,7 +42,7 @@ def _prepare_benchmarks(config, run_id, events):
 
 def prepare_benchmarks(config, run_id, events):
     rows = _prepare_benchmarks(config, run_id, events)
-    if getattr(config, 'mode', None) in ('MANUAL','SMA'):
+    if getattr(config, 'mode', None) in ('MANUAL','SMA','STRATEGY'):
         rows = [(replace(ledger, entries=tuple(replace(e, schema_version=4) for e in ledger.entries)), reason, details)
                 for ledger, reason, details in rows]
     return rows

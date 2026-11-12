@@ -67,6 +67,9 @@ def manifest(inputs, analysis=_DEFAULT):
         identity["analysis_policy"] = RISK_POLICY if risk else POLICY
     if risk:
         identity["risk_policy"] = RISK_POLICY
+    if risk and inputs.config.mode == 'STRATEGY':
+        identity['strategy'] = inputs.config.strategy
+        identity['indicator_policy'] = inputs.config.strategy.policy
     metadata = {"schema_version": 1, "run_id": sha256(canonical(identity)).hexdigest(),
             **identity, "code_files": code_files, "package_version": __version__,
             "dependencies": [], "decimal_policy": {"precision": 40, "rounding": "ROUND_HALF_EVEN",
@@ -105,6 +108,10 @@ def manifest(inputs, analysis=_DEFAULT):
                         gap_policy='INTERRUPT_PRESERVE_RESERVATIONS')
         if inputs.config.mode == 'SMA':
             metadata.update(strategy=inputs.config.strategy, warmup_candles=inputs.config.strategy.long_window+1)
+    if risk and inputs.config.mode == 'STRATEGY':
+        metadata.update(schema_version=5, input_config_schema_version=5,
+                        strategy=inputs.config.strategy, indicator_policy=inputs.config.strategy.policy,
+                        warmup_candles=inputs.config.strategy.warmup_candles)
     return metadata
 
 
@@ -187,7 +194,7 @@ def ratio_text(value):
 
 
 def text_report(value):
-    if value.get('schema_version') == 4:
+    if value.get('schema_version') in (4, 5):
         from .exports import markdown_report
         return markdown_report(value)
     if value.get('schema_version') == 3:
@@ -243,7 +250,7 @@ def text_report(value):
 
 def write_artifacts(directory, metadata, session, summary):
     from .exports import analysis_files
-    enriched = summary.get('schema_version') in (3, 4)
+    enriched = summary.get('schema_version') in (3, 4, 5)
     events = [{**e, 'schema_version': summary['schema_version']} for e in session.events] if enriched else session.events
     contents = analysis_files(summary) if enriched else {}
     contents.update({'events.jsonl': ''.join(canonical(e).decode('utf-8') + '\n' for e in events),

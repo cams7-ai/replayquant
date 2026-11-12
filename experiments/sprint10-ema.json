@@ -1,0 +1,32 @@
+{
+  "schema_version": 5,
+  "mode": "STRATEGY",
+  "source": "FICTICIA",
+  "symbol": "BTCUSDT",
+  "interval": "1m",
+  "initial_cash": "1000",
+  "fee_rate": "0",
+  "slippage_rate": "0",
+  "instrument_filters": {
+    "step": "0.000001",
+    "min_quantity": "0.000001",
+    "min_notional": "0"
+  },
+  "risk": {
+    "risk_fraction": "0.01",
+    "exposure_fraction": "1",
+    "stop_fraction": "0.5",
+    "target_fraction": "0.9",
+    "daily_loss_fraction": "0.9",
+    "drawdown_fraction": "0.9",
+    "max_price_age_seconds": "60"
+  },
+  "strategy": {
+    "name": "EMA_CROSS",
+    "version": 1,
+    "parameters": {
+      "short_window": 2,
+      "long_window": 3
+    }
+  }
+}

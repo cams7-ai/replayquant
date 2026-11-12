@@ -33,7 +33,7 @@ def enrich(summary, session):
                 execution_conventions=LIMITATIONS, reconciliation=session.ledger.reconcile())
     interrupted = session.status == 'INTERRUPTED'
     refused = any(o.status in ('REJECTED','UNEXECUTED') for o in session.orders)
-    summary.update(schema_version=4, input_config_schema_version=4, simulation_mode=session.config.mode,
+    summary.update(schema_version=session.config.schema_version, input_config_schema_version=session.config.schema_version, simulation_mode=session.config.mode,
                    status=session.status, diagnostic=session.diagnostic,
                    exit_code=1 if interrupted else (2 if refused else 0), pending_order_id=session.pending,
                    candles=[e['candle'] for e in session.events if e['type'] == 'CLOSE'],
@@ -42,6 +42,12 @@ def enrich(summary, session):
                    decisions=[e for e in session.events if e['type'] == 'DECISION'],
                    intentions=[e for e in session.events if e['type'] == 'INTENTION'],
                    risk=risk, analysis=a, limitations=LIMITATIONS)
+    if session.config.mode == 'STRATEGY':
+        a['ledger_entries'] = [{**asdict(e), 'schema_version': 5} for e in a['ledger_entries']]
+        for benchmark in a['benchmarks']:
+            benchmark['ledger_entries'] = [{**asdict(e), 'schema_version': 5} for e in benchmark['ledger_entries']]
+        risk['reservations'] = [{**row, 'schema_version': 5} for row in risk['reservations']]
+        summary.update(strategy=session.config.strategy, indicator_policy=session.config.strategy.policy)
     if interrupted:
         summary.update(round_trip_result=None, round_trip_reason='REPLAY_INTERRUPTED')
     for calc, fill in zip(summary['calculations'], session.fills):

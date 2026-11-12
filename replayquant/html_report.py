@@ -43,6 +43,9 @@ nav{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px}a{color:var(--accent
 .risk-panel .table-wrap table{min-width:1200px}
 .risk-panel .table-wrap td{white-space:nowrap;overflow-wrap:normal}
 .risk-panel h3{margin-top:22px}
+.strategy-panel .table-wrap table{min-width:1200px}
+.strategy-panel .table-wrap th,.strategy-panel .table-wrap td{white-space:nowrap;overflow-wrap:normal}
+@media print{.strategy-panel .table-wrap table{min-width:0;table-layout:fixed}.strategy-panel .table-wrap th,.strategy-panel .table-wrap td{white-space:normal;overflow-wrap:anywhere}}
 @media print{.risk-panel .table-wrap table{min-width:0;table-layout:fixed}.risk-panel .table-wrap td{white-space:normal;overflow-wrap:anywhere}}
 .equity-chart{height:300px;width:100%;min-width:0}.equity-panel{margin:24px 0}.equity-print{display:none}
 @media print{.equity-chart,.equity-readout,.equity-fit{display:none!important}.equity-print{display:block;width:100%;height:auto}.equity-print:not([src]){display:none}}
@@ -77,8 +80,9 @@ def html_report(value):
     value = wire(value)
     balance = value["final_balance"]
     complete = value["exit_code"] == 0
-    risk = value["schema_version"] == 4
-    enriched = value["schema_version"] in (3,4)
+    risk = value["schema_version"] in (4, 5)
+    modular = value["schema_version"] == 5
+    enriched = value["schema_version"] in (3,4,5)
     sma = value["schema_version"] == 2 or value.get("simulation_mode") == "SMA"
     interrupted = value.get("status") == "INTERRUPTED"
     state = ("Replay interrompido — relatório parcial" if interrupted else
@@ -97,16 +101,16 @@ def html_report(value):
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<title>ReplayQuant | Relatório de replay Spot</title>',
              f'<style>{CSS}</style></head><body><main>',
-             f'<header><div class="eyebrow">ReplayQuant / Sprint {"09" if risk else ("08" if enriched else ("07" if sma else "06"))}</div>',
+             f'<header><div class="eyebrow">ReplayQuant / Sprint {"10" if modular else ("09" if risk else ("08" if enriched else ("07" if sma else "06")))}</div>',
              '<h1>Relatório de replay Spot</h1>',
              '<p class="muted">Ordens, preenchimentos e memória de cálculo de BTC/USDT.</p>',
-             f'<p class="muted">Dados fictícios · {"Estratégia SMA" if sma else "Ordens manuais"} · Horários em UTC</p>',
+             f'<p class="muted">Dados fictícios · {safe(value["strategy"]["name"]) if modular else ("Estratégia SMA" if sma else "Ordens manuais")} · Horários em UTC</p>',
              f'<p class="identity">Execução: {safe(value["run_id"])}</p>',
              f'<span class="badge {"approved" if complete else "attention"}">'
              f'{safe(state)}</span>',
              f'<p class="muted">Código de saída: {safe(value["exit_code"])}</p></header>',
              '<nav aria-label="Seções do relatório"><a href="#resumo">Resumo</a>'
-             + ('<a href="#grafico">Gráfico</a>' if sma else '')
+             + ('<a href="#grafico">Gráfico</a>' if sma or modular else '')
              + ('<a href="#analise">Patrimônio e métricas</a>' if enriched else '')
              + '<a href="#ordens">Ordens</a><a href="#execucoes">Preenchimentos</a>'
              '<a href="#calculos">Memória de cálculo</a><a href="#limites">Limitações</a></nav>',
@@ -135,6 +139,9 @@ def html_report(value):
         parts.append(candle_chart(value))
     if enriched:
         parts.append(analysis_html(value, library_loaded=(sma or risk) and bool(value.get("candles"))))
+    if modular:
+        from .strategy_reporting import strategy_html
+        parts.append(strategy_html(value))
     if sma:
         parts.append('<section class="panel"><h2>Estratégia SMA e causalidade</h2>')
         parts.append(f'<p>Estado: {safe(value["status"])} · Pendência: {safe(value["pending_order_id"] or "nenhuma")}</p>')
@@ -159,7 +166,7 @@ def html_report(value):
                            ((e["intent_id"], e["decision_id"], e["order_id"]) for e in value["intentions"]),
                            "Intenções aprovadas; saldos mudam somente no preenchimento"))
         parts.append('</section>')
-    parts.append(f'<section class="panel" id="ordens"><h2>{"Ordens SMA" if sma else "Ordens manuais"}</h2>')
+    parts.append(f'<section class="panel" id="ordens"><h2>{"Ordens da estratégia" if modular else ("Ordens SMA" if sma else "Ordens manuais")}</h2>')
     if value["orders"]:
         parts.append(table(("Ordem", "Submissão (UTC)", "Lado", "Estado", "Motivo"), (
             (o["request"]["id"], o["request"]["at_close"], SIDES.get(o["request"]["side"], o["request"]["side"]),

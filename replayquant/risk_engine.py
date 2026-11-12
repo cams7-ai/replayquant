@@ -14,7 +14,7 @@ from .protection import Protection, opening_trigger, range_trigger
 from .reservations import Reservation, ReservationLedger
 from .risk import EquityGuard, RiskSnapshot, evaluate, revalidate, POLICY
 from .risk_models import RiskConfig, RiskOrder, RiskRequest
-from .strategies import SMACross
+from .strategies import SMACross, REGISTRY
 from .validation import ValidationError, financial, identifier
 
 ZERO = Decimal('0')
@@ -39,7 +39,11 @@ class RiskSession(Session):
         super().__init__(config, run_id)
         self._ledger = ReservationLedger.initial(config.initial_cash, run_id)
         self._guard = EquityGuard(config.risk)
-        self.strategy = SMACross(config.strategy) if config.mode == 'SMA' else None
+        self.strategy = None
+        if config.mode == 'SMA':
+            self.strategy = SMACross(config.strategy)
+        elif config.mode == 'STRATEGY':
+            self.strategy = REGISTRY.create(config.strategy)
         self.status, self.diagnostic = 'RUNNING', None
         self._mark = self._mark_at = None
         self._group = None
@@ -72,7 +76,7 @@ class RiskSession(Session):
 
     def _emit(self, at, event_type, **payload):
         super()._emit(at, event_type, **payload)
-        self._events[-1]['schema_version'] = 4
+        self._events[-1]['schema_version'] = self.config.schema_version
 
     def _active(self):
         if self.status == 'INTERRUPTED':
@@ -80,7 +84,7 @@ class RiskSession(Session):
         super()._active()
 
     def _record(self, kind, at, seq, payload):
-        self._risk_records.append(dict(schema_version=4, run_id=self.run_id,
+        self._risk_records.append(dict(schema_version=self.config.schema_version, run_id=self.run_id,
                                        record_type=kind, at=at, source_event_seq=seq,
                                        payload=deepcopy(payload)))
 
@@ -128,8 +132,9 @@ class RiskSession(Session):
     def submit(self, request):
         if not isinstance(request, RiskRequest):
             raise ValidationError('Modo risco exige RiskRequest')
-        if self.config.mode == 'SMA' and request.id not in self._actions:
-            raise ValidationError('Modo SMA exige handle_signal')
+        strategy_cancel = self.config.mode == 'STRATEGY' and request.side == 'CANCEL'
+        if self.config.mode != 'MANUAL' and request.id not in self._actions and not strategy_cancel:
+            raise ValidationError('Estratégia exige handle_signal')
         return self._submit(request)
 
     def _submit(self, request):
@@ -194,8 +199,8 @@ class RiskSession(Session):
     @atomic
     def handle_signal(self, signal_id, side, at, evaluation_id=None):
         identifier(signal_id)
-        if self.config.mode != 'SMA':
-            raise ValidationError('Sinais exigem modo SMA')
+        if self.config.mode == 'MANUAL':
+            raise ValidationError('Sinais exigem modo de estratégia')
         request = RiskRequest(f'{signal_id}:order', at, side)
         at = request.at_close
         if evaluation_id is not None:
@@ -232,7 +237,7 @@ class RiskSession(Session):
             if self._closed is None or self._opening.at != self._closed.open_time:
                 raise ValidationError('Fechar candle antes de nova abertura')
             if opening.at != self._closed.close_time:
-                if self.config.mode == 'SMA' and opening.at > self._closed.close_time:
+                if self.config.mode != 'MANUAL' and opening.at > self._closed.close_time:
                     self.status = 'INTERRUPTED'
                     self.diagnostic = dict(reason='DATA_GAP', expected=self._closed.close_time, found=opening.at)
                     self._emit(self._closed.close_time, 'INTERRUPTED', **self.diagnostic)
@@ -260,7 +265,7 @@ class RiskSession(Session):
                 if reason:
                     self._cancel_order(order.request.id, opening.at, 'REJECTED', reason)
                     return
-            details = dict(exit_origin='SIGNAL' if self.config.mode == 'SMA' else 'MANUAL',
+            details = dict(exit_origin='SIGNAL' if self.config.mode != 'MANUAL' else 'MANUAL',
                            execution_time_model='OPEN_EVENT', intrabar_time_known=True,
                            interval_start=opening.at, interval_end=opening.at, ambiguous=False)
             self._execute(order.request.id, opening.price, opening.at, details)
