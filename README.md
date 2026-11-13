@@ -928,3 +928,53 @@ artefatos idênticos. Uma falha de gravação conserva o marcador INCOMPLETE.
 
 Consulte [Sprint 11](docs/sprint11.md), [validação](docs/sprint11-validacao.md) e
 [glossário](docs/sprint11-glossario.md).
+
+## Sprint 12 — Carteira compartilhada
+
+O comando `carteira` executa schema **7**, modo `SHARED_PORTFOLIO`, com um caixa físico USDT, posições separadas por moeda base e lotes atribuídos a titulares. A política `ALLOCATED_BUDGETS_V1` fixa atribuições iniciais; ganhos/perdas continuam com o titular e o residual `UNALLOCATED` fica indisponível para compras. Cada estratégia pode acompanhar vários pares com indicadores independentes. O comando `comparar` continua executando carteiras independentes.
+
+```bash
+source .venv/bin/activate
+sprint12_dir=$(mktemp -d)
+python -m replayquant carteira --help
+python -m replayquant carteira --config experiments/sprint12-compartilhada.json --saida "$sprint12_dir/compartilhada" --formato html > "$sprint12_dir/compartilhada.html"
+python -m replayquant carteira --config experiments/sprint12-multipar.json --saida "$sprint12_dir/multipar" --formato html > "$sprint12_dir/multipar.html"
+python -m replayquant carteira --config experiments/sprint12-limite.json --saida "$sprint12_dir/limite" --formato json > "$sprint12_dir/limite.json"
+python -m unittest discover -s tests -v
+```
+
+Os códigos individuais esperados são **0, 0 e 2** para as três receitas. Também há `texto`, `json` e `markdown`; `--analise` é redundante. Caminhos internos são relativos à receita. A saída exige diretório novo e publica exatamente **15 arquivos**: manifest.json, events.jsonl, report.json, ledger.jsonl, reservations.jsonl, risk.jsonl, equity.csv, trades.csv, metrics.csv, benchmarks.csv, allocations.csv, lots.csv, contributions.csv, exposure.csv e report.md. O HTML fica em stdout, fora desse diretório. Uma exportação interrompida conserva `INCOMPLETE`.
+
+| Receita | Fills / lotes encerrados | Caixa final USDT | Taxas USDT | Código |
+| --- | --- | --- | --- | --- |
+| Compartilhada SMA/EMA em BTC | 4 / 2 | 989.95 | 0.05 | 0 |
+| Multipar SMA/BTC e EMA/ETH | 4 / 2 | 989.95 | 0.05 | 0 |
+| Teto BTC reduzido para 3% | 2 / 1 | 993.32680 | 0.03320 | 2 |
+
+No canônico, as compras são 0.000166 e 0.000084 BTC a 120000 USDT/BTC. As saídas integrais a 80000 produzem PnL de −6.67320 e −3.37680 USDT. As atribuições finais são 493.32680 e 496.62320 USDT. O retorno global é −1.005%; contribuições −0.66732% e −0.33768% usam o capital inicial global. Os retornos próprios −1.33464% e −0.67536% usam as atribuições individuais e não devem ser somados. No multipar, a segunda quantidade é 0.00420 ETH e a exposição conjunta dura 120 segundos.
+
+O coordenador publica marcas comuns CLOSE, resolve proteções elegíveis, avalia indicadores e sinais, processa cancelamentos/SELL e arbitra BUY. Depois valida a composição OPEN, publica suas marcas em lote, resolve gaps protetivos, executa SELL e revalida BUY. Prioridade crescente, titular, símbolo e sinal definem a arbitragem, independentemente da ordem das listas. Quantidade, orçamento e bracket não aumentam na abertura. No cenário de limite, a taxa da primeira compra reduz o teto patrimonial e rejeita a segunda por `EXPOSURE_INSTRUMENT`; o SELL posterior sem lote gera `INSUFFICIENT_ASSET`.
+
+A API incremental exige `SharedConfig` com `Catalog`, `Window`, `PortfolioLimits`, `Allocation`, `StrategySpec` e `RiskParameters` tipados. O carregador abaixo resolve esses modelos; não há catálogo global implícito:
+
+```python
+from replayquant.shared_config import load_shared
+from replayquant.shared_engine import SharedSession, SharedRequest
+
+inputs = load_shared("experiments/sprint12-compartilhada.json")
+session = SharedSession(inputs.config)
+# Para cada minuto, fornecer apenas Candle encerrado e Opening já elegível:
+# session.on_boundary(at, closes=(...), openings=(...), requests=(...))
+# requests é opcional: SharedRequest(id, strategy_id, symbol, "BUY"|"SELL"|"CANCEL", ...).
+# Na última fronteira, openings=(); depois session.finish().
+```
+
+Cada fronteira é preparada em cópia isolada. Repetição equivalente é inócua; conflito, evento estrangeiro, preço futuro, ordem temporal inválida ou falha aritmética preservam o estado aceito. SELL com `lot_id` de outro titular gera `OWNERSHIP_MISMATCH`. `CANCEL` exige `target_order_id` completo da ordem. A interface pública de mutação é `on_boundary`/`finish`; os métodos de fases são internos ao coordenador. Não há recuperação após reinício.
+
+`GLOBAL_GAP_INTERRUPT_V1` conserva fechamentos/sinais válidos, mas não consome um lote OPEN incompleto. Essa interrupção retorna 1 e retém reservas. No término normal, `KEEP_OPEN` conserva lotes e libera reservas; indisponibilidade encerra proteção sem inventar saída. Marcas carregadas mantêm horário/idade e não viram cotações negociáveis. Carteira sem observações elegíveis retorna `PORTFOLIO_UNAVAILABLE`, código 2, capital preservado e desempenho nulo com motivo.
+
+O ledger separa `PHYSICAL` e `ATTRIBUTION`: somar ambas como caixa físico duplicaria capital. Por ponto, `C = C_UNALLOCATED + Σ C_i`, `Q_base = Σ q_lote` e `P = C_UNALLOCATED + Σ P_i = capital_inicial + Σ PnL_i`. As reservas já integram os saldos totais. Os seis candidatos racionais de quantidade e seus empates ficam em `risk.jsonl`; revalidação substitui apenas o compromisso próprio e preserva os demais.
+
+O HTML contém candles por ativo, fills/linhas vinculados por lote, indicadores por binding, curva global e parcelas por titular, tabelas e limitações. Gráficos SVG são locais, funcionam sem JavaScript e na impressão; valores em ponto flutuante são usados somente na geometria, enquanto tabelas/artefatos conservam finanças exatas. O eixo das curvas representa a sequência de observações, inclusive pontos distintos no mesmo UTC. `HOLD_USDT` e `BUY_HOLD_BASKET` usam capital independente e o mesmo horizonte aceito. No canônico, a cesta conserva 0.001 USDT e 0.00999 BTC, com patrimônio bruto final de 799.201 USDT.
+
+Dados fictícios, liquidez ilimitada, ausência de latência positiva, `STOP_FIRST` e `BAR_CLOSE_RESOLUTION` são hipóteses declaradas. O risco planejado não garante teto de perda em gaps. A exposição simultânea a BTC/ETH não demonstra hedge, correlação ou rentabilidade. Consulte [especificação](docs/sprint12.md), [validação executada](docs/sprint12-validacao.md) e [glossário](docs/sprint12-glossario.md).

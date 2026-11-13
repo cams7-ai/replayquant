@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "candles": [
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:00:00+00:00",
+      "close_time": "2026-01-01T12:01:00+00:00",
+      "open": "2000",
+      "high": "2000",
+      "low": "2000",
+      "close": "2000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:01:00+00:00",
+      "close_time": "2026-01-01T12:02:00+00:00",
+      "open": "2000",
+      "high": "2000",
+      "low": "1800",
+      "close": "1800",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:02:00+00:00",
+      "close_time": "2026-01-01T12:03:00+00:00",
+      "open": "1800",
+      "high": "1800",
+      "low": "1600",
+      "close": "1600",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:03:00+00:00",
+      "close_time": "2026-01-01T12:04:00+00:00",
+      "open": "1600",
+      "high": "2000",
+      "low": "1600",
+      "close": "2000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:04:00+00:00",
+      "close_time": "2026-01-01T12:05:00+00:00",
+      "open": "2000",
+      "high": "2400",
+      "low": "2000",
+      "close": "2400",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:05:00+00:00",
+      "close_time": "2026-01-01T12:06:00+00:00",
+      "open": "2400",
+      "high": "2400",
+      "low": "2000",
+      "close": "2000",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:06:00+00:00",
+      "close_time": "2026-01-01T12:07:00+00:00",
+      "open": "2000",
+      "high": "2000",
+      "low": "1600",
+      "close": "1600",
+      "volume": "1",
+      "is_closed": true
+    },
+    {
+      "source": "FICTICIA",
+      "symbol": "ETHUSDT",
+      "interval": "1m",
+      "open_time": "2026-01-01T12:07:00+00:00",
+      "close_time": "2026-01-01T12:08:00+00:00",
+      "open": "1600",
+      "high": "1600",
+      "low": "1600",
+      "close": "1600",
+      "volume": "1",
+      "is_closed": true
+    }
+  ]
+}

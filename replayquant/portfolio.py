@@ -30,16 +30,26 @@ class AssetBalance:
 
 
 @financial
+def fill_movements(fill: Fill):
+    """Bruto e deltas comuns aos livros individual e compartilhado."""
+    if not isinstance(fill, Fill):
+        raise ValidationError('Preenchimento inválido')
+    gross = fill.price * fill.quantity
+    buy = fill.side == 'BUY'
+    return gross, -(gross + fill.fee) if buy else gross - fill.fee, fill.quantity if buy else -fill.quantity
+
+
+@financial
 def after_fill(balance: Balance, fill: Fill):
     if not isinstance(balance, (Balance, AssetBalance)) or not isinstance(fill, Fill):
         raise ValidationError("Saldo e preenchimento inválidos")
-    gross = fill.price * fill.quantity
+    gross, cash_delta, asset_delta = fill_movements(fill)
     if fill.side == "BUY":
         if balance.asset_quantity != 0:
             raise ValidationError("POSITION_OPEN")
         if balance.cash < gross + fill.fee:
             raise ValidationError("INSUFFICIENT_CASH")
-        return type(balance)(balance.cash - (gross + fill.fee), balance.asset_quantity + fill.quantity)
+        return type(balance)(balance.cash + cash_delta, balance.asset_quantity + asset_delta)
     if balance.asset_quantity < fill.quantity:
         raise ValidationError("INSUFFICIENT_ASSET")
-    return type(balance)(balance.cash + (gross - fill.fee), balance.asset_quantity - fill.quantity)
+    return type(balance)(balance.cash + cash_delta, balance.asset_quantity + asset_delta)

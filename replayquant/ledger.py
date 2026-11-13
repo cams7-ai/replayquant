@@ -2,7 +2,7 @@
 from dataclasses import dataclass, replace, asdict
 from decimal import Decimal
 from .models import Fill, side_value
-from .portfolio import Balance, AssetBalance, after_fill
+from .portfolio import Balance, AssetBalance, after_fill, fill_movements
 from .validation import ValidationError, decimal_value, identifier, utc, financial
 from .metrics import integer, seconds, percentage
 
@@ -179,10 +179,8 @@ class Ledger:
         if self.entries[0].at is None or fill.at < self.entries[-1].at or source_event_seq <= self.entries[-1].source_event_seq:
             raise ValidationError('Movimento fora de ordem ou sem inicialização temporal')
         after = after_fill(self.balance, fill) if expected_balance is None else expected_balance
-        gross = fill.price * fill.quantity
+        gross, delta_cash, delta_asset = fill_movements(fill)
         buy = fill.side == 'BUY'
-        delta_cash = -(gross + fill.fee) if buy else gross - fill.fee
-        delta_asset = fill.quantity if buy else -fill.quantity
         projected = type(self.balance)(self.balance.cash + delta_cash, self.balance.asset_quantity + delta_asset)
         if projected != after:
             raise ValidationError('RECONCILIATION_FAILED: proposta de saldo divergente')

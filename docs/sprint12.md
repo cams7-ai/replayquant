@@ -4,7 +4,7 @@
 **Nível** intermediário  
 **Referência** [Planejamento](planejamento.md), especialmente seções 4, 12, 21 e 23  
 **Pré-requisitos** Sprints 06 a 11 implementadas e verificadas  
-**Estado** especificação para implementação futura. As expectativas e os comandos novos abaixo deverão ser validados durante a execução da etapa.
+**Estado** implementada; execução, resultados observados e limitações em [sprint12-validacao.md](sprint12-validacao.md). O texto abaixo conserva os contratos e a memória de cálculo da especificação.
 
 ## 1. Objetivo e ponto de partida
 

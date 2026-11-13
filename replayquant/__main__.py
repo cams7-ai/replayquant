@@ -45,7 +45,28 @@ def main(argv=None):
     comparison.add_argument('--config', required=True)
     comparison.add_argument('--saida', required=True)
     comparison.add_argument('--formato', choices=('texto','json','markdown','html'), default='texto')
+    shared = commands.add_parser('carteira', help='Carteira compartilhada com atribuições e lotes (schema 7)')
+    shared.add_argument('--config', required=True)
+    shared.add_argument('--saida', required=True)
+    shared.add_argument('--formato', choices=('texto','json','markdown','html'), default='texto')
+    shared.add_argument('--analise', action='store_true', help='Redundante: schema 7 sempre inclui análise')
     args = parser.parse_args(argv)
+    if args.command == 'carteira':
+        from .shared_config import load_shared
+        from .shared_engine import replay_shared
+        from .shared_reporting import shared_manifest, shared_report, shared_html, shared_markdown, write_shared
+        try:
+            inputs = load_shared(args.config)
+            metadata = shared_manifest(inputs)
+            session = replay_shared(inputs, metadata['run_id'])
+            summary = shared_report(session, inputs, metadata)
+            write_shared(args.saida, metadata, summary)
+            render = {'json': json_text, 'html': shared_html, 'texto': shared_markdown, 'markdown': shared_markdown}
+            sys.stdout.write(render[args.formato](summary))
+            return summary['exit_code']
+        except (ValidationError, OSError, UnicodeError) as exc:
+            print(f'Erro: {exc}', file=sys.stderr)
+            return 1
     if args.command == 'comparar':
         from .comparison import load_matrix, compare, write_comparison, comparison_html, comparison_markdown
         try:
