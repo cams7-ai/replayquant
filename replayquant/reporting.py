@@ -1,5 +1,5 @@
 """Relatórios, identidade por conteúdo e gravação sem sobrescrita."""
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, fields as dataclass_fields
 from datetime import datetime
 from decimal import Decimal
 from hashlib import sha256
@@ -15,13 +15,16 @@ from .validation import ValidationError, financial
 
 
 def wire(value):
+    if callable(getattr(value, '__replayquant_wire__', None)):
+        return wire(value.__replayquant_wire__())
     if isinstance(value, Decimal):
         # format não usa o contexto decimal nem arredonda o valor.
         return format(value, "f")
     if isinstance(value, datetime):
         return value.isoformat(timespec="microseconds")
     if is_dataclass(value):
-        return wire(asdict(value))
+        return wire({f.name: getattr(value, f.name) for f in dataclass_fields(value)
+                     if f.name != 'provenance' or getattr(value, f.name) not in (None, ())})
     if isinstance(value, dict):
         return {key: wire(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
@@ -63,6 +66,8 @@ def manifest(inputs, analysis=_DEFAULT):
     identity = {"data_hash": inputs.data_hash, "config_hash": inputs.config_hash,
                 "code_hash": sha256(canonical(code_files)).hexdigest(),
                 "python_version": platform.python_version()}
+    if getattr(inputs.config, 'provenance', None) is not None:
+        identity['provenance'] = inputs.config.provenance.identity
     if analysis:
         identity["analysis_policy"] = RISK_POLICY if risk else POLICY
     if risk:
@@ -96,7 +101,7 @@ def manifest(inputs, analysis=_DEFAULT):
                         frontend_dependencies=[{'name': 'lightweight-charts', 'version': '5.2.0', 'license': 'Apache-2.0', 'bundled': True}],
                         position_at_end='KEEP_OPEN', benchmark_quantity_quantum='0.000000000001',
                         benchmarks=['HOLD_USDT', 'BUY_HOLD_BTC'], no_cash_flows=True,
-                        observation_start=inputs.candles[0].open_time,
+                        observation_start=inputs.candles[0].open_time if inputs.candles else inputs.config.window.start,
                         coverage_policy='ACCEPTED_PREFIX_ON_GAP')
     if risk:
         metadata.update(schema_version=4, input_config_schema_version=4,

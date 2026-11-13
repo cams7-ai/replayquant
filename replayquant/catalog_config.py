@@ -9,6 +9,7 @@ from .validation import ValidationError
 class CatalogConfig(RiskConfig):
     catalog: Catalog | None = None
     window: Window | None = None
+    provenance: object = None
 
     def __post_init__(self):
         if not isinstance(self.catalog, Catalog) or not isinstance(self.window, Window):
@@ -18,6 +19,13 @@ class CatalogConfig(RiskConfig):
             raise ValidationError('Schema 6 exige STRATEGY sem roteiro')
         if self.instrument_filters != self.instrument.instrument_filters:
             raise ValidationError('Filtros devem corresponder ao catálogo')
+        if self.source == 'BINANCE_SPOT':
+            from .provenance import DatasetProvenance
+            if not isinstance(self.provenance, DatasetProvenance):
+                raise ValidationError('BINANCE_SPOT exige manifesto verificado')
+            self.provenance.verify(self.symbol, dict(self.provenance.files).get(self.symbol+'.json', b''), self.catalog)
+        elif self.provenance is not None:
+            raise ValidationError('Proveniência histórica exige BINANCE_SPOT')
 
     def _validate_instrument(self):
         self.catalog.resolve(self.source, self.symbol, self.interval)

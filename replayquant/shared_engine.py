@@ -487,6 +487,9 @@ class SharedSession:
             symbol = value.symbol
             if (value.source, value.interval) != (self.config.source, self.config.interval) or symbol not in dict(self.config.instrument_limits):
                 raise ValidationError('Evento estrangeiro')
+            if self.config.source == 'BINANCE_SPOT':
+                provenance = next(p for p in self.config.provenance if symbol+'.json' in dict(p.files))
+                provenance.verify_event(value)
             timestamp = value.close_time if model is Candle else value.at
             if timestamp != at:
                 raise ValidationError('Evento fora da fronteira')

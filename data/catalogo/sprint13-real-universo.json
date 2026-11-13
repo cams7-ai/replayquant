@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "source": "BINANCE_SPOT",
+  "basis": "OBSERVED_COVERAGE_ONLY",
+  "restriction": "SURVIVORSHIP_RESTRICTION",
+  "reference": "docs/sprint13.md; https://github.com/binance/binance-public-data",
+  "as_of": "2025-01-01T00:04:00+00:00",
+  "instruments": [
+    {
+      "symbol": "BTCUSDT",
+      "available_from": "2024-12-31T23:56:00+00:00",
+      "available_until": "2025-01-01T00:04:00+00:00"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "available_from": "2024-12-31T23:56:00+00:00",
+      "available_until": "2025-01-01T00:04:00+00:00"
+    }
+  ]
+}

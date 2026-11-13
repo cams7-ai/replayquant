@@ -186,7 +186,7 @@ def shared_report(session, inputs, metadata):
                      unrealized_pnl=l['quantity']*mark[0]-l['cost_basis'],
                      hypothetical_liquidation_value=l['quantity']*mark[0]*(1-session.config.slippage_rate)*(1-session.config.fee_rate))
         lots.append(l)
-    return dict(schema_version=7, run_id=metadata['run_id'], mode='SHARED_PORTFOLIO',
+    result = dict(schema_version=7, run_id=metadata['run_id'], mode='SHARED_PORTFOLIO',
                 status='INTERRUPTED' if session.interrupted else ('PORTFOLIO_UNAVAILABLE' if session.unavailable else 'COMPLETED'),
                 exit_code=session.exit_code, source=session.config.source, quote_asset='USDT', interval='1m',
                 initial_cash=session.config.initial_cash, policies=POLICIES, config=session.config,
@@ -211,6 +211,11 @@ def shared_report(session, inputs, metadata):
                              'Posições simultâneas expõem conjuntamente; não se infere hedge ou correlação estatística.',
                              'KEEP_OPEN conserva posições; liquidação hipotética não cobra taxa nem gera fill.',
                              'Benchmarks usam capital independente e não obedecem aos bloqueios das estratégias.'])
+
+    if session.config.provenance:
+        from .provenance import enrich_historical
+        enrich_historical(result, session.config.provenance)
+    return result
 
 
 def _tables(summary):
@@ -252,6 +257,9 @@ def _tables(summary):
          [[b['portfolio'], b['initial_cash'], b['cash'], b['gross_equity'], b['hypothetical_liquidation_equity'], b['paid_fees'], b['return_pct']['value'], b['reason']] for b in s['benchmarks']]),
         ('Reconciliação', ['Estado', 'Caixa reconstruído USDT', 'Ativos base'],
          [[s['reconciliation'][k] for k in ('status', 'reconstructed_cash', 'assets')]])]
+    if s.get('provenance'):
+        sections.insert(0, ('Origem e proveniência', ['Origem','Versão','Ingestão','Qualidade','Universo','Política'],
+                          [[p['source'],p['dataset_version'],p['ingestion_id'],p['quality_status'],p['universe']['basis'],p['policy']] for p in s['provenance']]))
     return sections
 
 
@@ -351,7 +359,7 @@ def shared_html(summary):
              '<ul>'+''.join('<li>'+escape(v)+'</li>' for v in summary['limitations'])+'</ul>',
              '<details><summary>Curva global e exposição auditável</summary><pre>'+escape(json_text(dict(equity=summary['equity'], exposure=summary['exposure'])))+'</pre></details>']
     return ('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            '<title>ReplayQuant — Sprint 12</title><style>body{font:15px system-ui;color:#183448;background:#f6f8fa;margin:0;padding:24px;line-height:1.5}main{max-width:1280px;margin:auto}h1,h2{line-height:1.2}h2{margin-top:2rem}figure{margin:16px 0;background:white;padding:12px;border:1px solid #ced8df}svg{width:100%;height:auto}text{fill:#183448;font:11px system-ui}.scroll{overflow:auto;max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;text-align:left;border:1px solid #ced8df;vertical-align:top;overflow-wrap:anywhere;min-width:75px}pre{white-space:pre-wrap;overflow-wrap:anywhere}details{max-width:100%}@media(max-width:500px){body{padding:12px}h1{font-size:24px}}@media print{body{padding:0;background:white;font-size:10pt}.scroll{overflow:visible}table{table-layout:fixed;font-size:7pt}th,td{min-width:0;padding:3px}figure{break-inside:avoid}details{display:none}}</style><main>'+''.join(body)+'</main></html>\n')
+            '<title>ReplayQuant — Sprint 12</title><style>body{font:15px system-ui;overflow-wrap:anywhere;color:#183448;background:#f6f8fa;margin:0;padding:24px;line-height:1.5}main{max-width:1280px;margin:auto}h1,h2{line-height:1.2}h2{margin-top:2rem}figure{margin:16px 0;background:white;padding:12px;border:1px solid #ced8df}svg{width:100%;height:auto}text{fill:#183448;font:11px system-ui}.scroll{overflow:auto;max-width:100%;background:white}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px;text-align:left;border:1px solid #ced8df;vertical-align:top;overflow-wrap:anywhere;min-width:75px}pre{white-space:pre-wrap;overflow-wrap:anywhere}details{max-width:100%}@media(max-width:500px){body{padding:12px}h1{font-size:24px}}@media print{body{padding:0;background:white;font-size:10pt}.scroll{overflow:visible}table{table-layout:fixed;font-size:7pt}th,td{min-width:0;padding:3px}figure{break-inside:avoid}details{display:none}}</style><main>'+''.join(body)+'</main></html>\n')
 
 
 def _csv(rows, headers):

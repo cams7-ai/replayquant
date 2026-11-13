@@ -4,7 +4,7 @@
 **Nível** intermediário  
 **Referência** [Planejamento](planejamento.md), especialmente seções 4, 13, 21 e 23  
 **Pré-requisitos** Sprints 06 a 12 implementadas e verificadas  
-**Estado** especificação para implementação futura. Os comandos, arquivos novos e resultados esperados abaixo ainda precisam ser implementados e validados.
+**Estado** implementada; execução, resultados observados e limitações em [sprint13-validacao.md](sprint13-validacao.md). O texto abaixo conserva os contratos e a memória de cálculo da especificação.
 
 ## 1. Objetivo e estado de entrada
 

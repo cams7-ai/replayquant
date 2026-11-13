@@ -56,8 +56,8 @@ class Instrument:
     rules_source: str
 
     def __post_init__(self):
-        if self.source != 'FICTICIA' or type(self.source) is not str:
-            raise ValidationError('Origem suportada: FICTICIA')
+        if self.source not in ('FICTICIA','BINANCE_SPOT') or type(self.source) is not str:
+            raise ValidationError('Origem suportada: FICTICIA ou BINANCE_SPOT')
         for value in (self.symbol, self.base_asset, self.quote_asset):
             asset_code(value)
         if self.quote_asset != 'USDT' or self.base_asset == self.quote_asset or self.symbol != self.base_asset + self.quote_asset:

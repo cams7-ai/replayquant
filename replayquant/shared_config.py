@@ -70,13 +70,14 @@ class SharedConfig:
     mode: str = 'SHARED_PORTFOLIO'
     signal_policy: str = 'ALLOCATED_BUDGETS_V1'
     schema_version: int = 7
+    provenance: tuple = ()
 
     def __post_init__(self):
         if (not isinstance(self.catalog, Catalog) or not isinstance(self.window, Window)
                 or not isinstance(self.portfolio, PortfolioLimits)):
             raise ValidationError('Carteira exige catálogo, janela e limites tipados')
-        if (self.source, self.quote_asset, self.interval, self.mode, self.signal_policy) != (
-                'FICTICIA', 'USDT', '1m', 'SHARED_PORTFOLIO', 'ALLOCATED_BUDGETS_V1'):
+        if self.source not in ('FICTICIA', 'BINANCE_SPOT') or (self.quote_asset, self.interval, self.mode, self.signal_policy) != (
+                'USDT', '1m', 'SHARED_PORTFOLIO', 'ALLOCATED_BUDGETS_V1'):
             raise ValidationError('Política/identidade de carteira inválida')
         if type(self.schema_version) is not int or self.schema_version != 7:
             raise ValidationError('schema_version exige inteiro 7')
@@ -105,6 +106,19 @@ class SharedConfig:
                 raise ValidationError('Limite/cotação inválido')
         object.__setattr__(self, 'strategies', tuple(sorted(self.strategies, key=lambda s: (s.priority, s.id))))
         object.__setattr__(self, 'instrument_limits', tuple(sorted(self.instrument_limits)))
+        if self.source == 'BINANCE_SPOT':
+            from .provenance import DatasetProvenance
+            if (type(self.provenance) is not tuple or not self.provenance
+                    or not all(isinstance(p, DatasetProvenance) for p in self.provenance)):
+                raise ValidationError('BINANCE_SPOT exige proveniência tipada')
+            for symbol in symbols:
+                if not any(p.identity['source'] == self.source and symbol+'.json' in dict(p.files)
+                           and p.identity['universe']['source'] == self.source for p in self.provenance):
+                    raise ValidationError('Proveniência sem binding')
+                p = next(p for p in self.provenance if symbol+'.json' in dict(p.files))
+                p.verify(symbol, dict(p.files)[symbol+'.json'], self.catalog)
+        elif self.provenance != ():
+            raise ValidationError('Proveniência histórica exige BINANCE_SPOT')
 
     def instrument(self, symbol):
         return self.catalog.resolve(self.source, symbol, self.interval)
@@ -150,18 +164,30 @@ def load_shared(path):
     for symbol, row in value['instrument_limits'].items():
         fields(row, {'exposure_fraction'}, 'limite de instrumento')
         limits.append((symbol, decimal_text(row['exposure_fraction'], 'exposure_fraction')))
+    provenances = {}
+    if value['source'] == 'BINANCE_SPOT':
+        from .provenance import load_provenance
+        for row in value['datasets']:
+            fields(row, {'symbol','path','manifest'}, 'dataset histórico')
+            if type(row['manifest']) is not str or not row['manifest']:
+                raise ValidationError('manifest exige caminho')
+            p = load_provenance(path.parent/row['manifest'])
+            provenances[p.identity['ingestion_id']] = p
     config = SharedConfig(catalog, parse_window(value['window']),
                           *(decimal_text(value[k], k) for k in ('initial_cash', 'fee_rate', 'slippage_rate')),
                           model_decimals(value['portfolio'], PortfolioLimits), tuple(limits), tuple(allocations),
-                          **{k: value[k] for k in ('source', 'quote_asset', 'interval', 'mode', 'signal_policy', 'schema_version')})
+                          **{k: value[k] for k in ('source', 'quote_asset', 'interval', 'mode', 'signal_policy', 'schema_version')},
+                          provenance=tuple(provenances[k] for k in sorted(provenances)))
     datasets, hashes, coverage = {}, [], []
     for row in value['datasets']:
-        fields(row, {'symbol', 'path'}, 'dataset')
+        fields(row, {'symbol', 'path'} | ({'manifest'} if config.source == 'BINANCE_SPOT' else set()), 'dataset')
         symbol = row['symbol']
         if type(symbol) is not str or symbol in datasets or symbol not in dict(limits) or type(row['path']) is not str:
             raise ValidationError('Dataset duplicado ou sem binding/caminho')
         data = (path.parent / row['path']).read_bytes()
-        candles, diagnostics = parse_candles(data, contiguous=False, catalog=catalog)
+        if config.source == 'BINANCE_SPOT':
+            load_provenance(path.parent/row['manifest']).verify(symbol, data, catalog)
+        candles, diagnostics = parse_candles(data, contiguous=False, catalog=catalog, allow_empty=config.source=='BINANCE_SPOT')
         if any((c.source, c.symbol, c.interval) != (config.source, symbol, config.interval) for c in candles):
             raise ValidationError('Dataset deve conter somente seu instrumento')
         item = config.instrument(symbol)

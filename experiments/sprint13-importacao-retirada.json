@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "mode": "HISTORICAL_IMPORT",
+  "adapter": "BINANCE_SPOT_KLINES_CSV_V1",
+  "dataset_key": "sprint13-fixture-retirada",
+  "dataset_kind": "SYNTHETIC_FORMAT_FIXTURE",
+  "source": "FICTICIA",
+  "quote_asset": "USDT",
+  "interval": "1m",
+  "catalog": "../data/catalogo/sprint13-retirada-instrumentos.json",
+  "universe_evidence": "../data/catalogo/sprint13-retirada-universo.json",
+  "window": {
+    "start": "2024-12-31T23:56:00+00:00",
+    "end": "2025-01-01T00:04:00+00:00"
+  },
+  "as_of": "2025-01-03T00:00:00+00:00",
+  "input_order": "REQUIRE_ASCENDING_PER_FILE",
+  "supersedes": null,
+  "revision_reason": null,
+  "raw_files": [
+    {
+      "symbol": "BTCUSDT",
+      "path": "../data/fixtures/sprint13/BTCUSDT-1m-2024-12-31.zip",
+      "member": "BTCUSDT-1m-2024-12-31.csv",
+      "timestamp_unit": "ms",
+      "checksum": "../data/fixtures/sprint13/BTCUSDT-1m-2024-12-31.zip.CHECKSUM"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "path": "../data/fixtures/sprint13/BTCUSDT-1m-2025-01-01.zip",
+      "member": "BTCUSDT-1m-2025-01-01.csv",
+      "timestamp_unit": "us",
+      "checksum": "../data/fixtures/sprint13/BTCUSDT-1m-2025-01-01.zip.CHECKSUM"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "path": "../data/fixtures/sprint13/ETHUSDT-1m-2024-12-31.zip",
+      "member": "ETHUSDT-1m-2024-12-31.csv",
+      "timestamp_unit": "ms",
+      "checksum": "../data/fixtures/sprint13/ETHUSDT-1m-2024-12-31.zip.CHECKSUM"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "path": "../data/fixtures/sprint13/ETHUSDT-1m-2025-01-01.zip",
+      "member": "ETHUSDT-1m-2025-01-01.csv",
+      "timestamp_unit": "us",
+      "checksum": "../data/fixtures/sprint13/ETHUSDT-1m-2025-01-01.zip.CHECKSUM"
+    }
+  ]
+}

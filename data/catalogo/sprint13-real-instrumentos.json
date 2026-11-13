@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "catalog_id": "sprint13-real",
+  "instruments": [
+    {
+      "source": "BINANCE_SPOT",
+      "symbol": "BTCUSDT",
+      "base_asset": "BTC",
+      "quote_asset": "USDT",
+      "intervals": [
+        "1m"
+      ],
+      "available_from": "2024-12-31T23:56:00+00:00",
+      "available_until": "2025-01-01T00:04:00+00:00",
+      "instrument_filters": {
+        "step": "0.000001",
+        "min_quantity": "0.000001",
+        "min_notional": "0"
+      },
+      "rules_basis": "SYNTHETIC_ASSUMPTION",
+      "rules_as_of": "2025-01-01T00:04:00+00:00",
+      "rules_source": "Hip\u00f3tese local da demonstra\u00e7\u00e3o Sprint 13; n\u00e3o s\u00e3o filtros hist\u00f3ricos da Binance"
+    },
+    {
+      "source": "BINANCE_SPOT",
+      "symbol": "ETHUSDT",
+      "base_asset": "ETH",
+      "quote_asset": "USDT",
+      "intervals": [
+        "1m"
+      ],
+      "available_from": "2024-12-31T23:56:00+00:00",
+      "available_until": "2025-01-01T00:04:00+00:00",
+      "instrument_filters": {
+        "step": "0.00001",
+        "min_quantity": "0.00001",
+        "min_notional": "0"
+      },
+      "rules_basis": "SYNTHETIC_ASSUMPTION",
+      "rules_as_of": "2025-01-01T00:04:00+00:00",
+      "rules_source": "Hip\u00f3tese local da demonstra\u00e7\u00e3o Sprint 13; n\u00e3o s\u00e3o filtros hist\u00f3ricos da Binance"
+    }
+  ]
+}

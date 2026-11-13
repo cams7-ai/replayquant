@@ -38,6 +38,7 @@ def main(argv=None):
             command.add_argument("--estrategia", choices=("sma",), help="Demonstração SMA da Sprint 07")
         if name == "executar":
             command.add_argument("--catalogo", help="Catálogo local obrigatório para schema 6")
+            command.add_argument('--dataset-manifest', help='Manifesto histórico obrigatório para BINANCE_SPOT')
             command.add_argument("--dados", required=True)
             command.add_argument("--config", required=True)
             command.add_argument("--saida", required=True)
@@ -50,7 +51,39 @@ def main(argv=None):
     shared.add_argument('--saida', required=True)
     shared.add_argument('--formato', choices=('texto','json','markdown','html'), default='texto')
     shared.add_argument('--analise', action='store_true', help='Redundante: schema 7 sempre inclui análise')
+    for name in ('obter-dados', 'importar-dados', 'validar-dados'):
+        historical = commands.add_parser(name, help='Aquisição explícita ou ingestão/qualidade histórica local')
+        historical.add_argument('--formato', choices=('texto','json') if name=='obter-dados' else ('texto','json','markdown','html'), default='texto')
+        if name == 'validar-dados':
+            historical.add_argument('--manifesto', required=True)
+        else:
+            historical.add_argument('--config', required=True)
+        if name == 'obter-dados':
+            historical.add_argument('--destino', required=True)
+        elif name == 'importar-dados':
+            historical.add_argument('--repositorio', required=True)
+            historical.add_argument('--saida', required=True)
     args = parser.parse_args(argv)
+    if args.command in ('obter-dados','importar-dados','validar-dados'):
+        import sqlite3
+        from .archive import acquire
+        from .historical import import_path, validate_snapshot, render_quality
+        try:
+            if args.command == 'obter-dados':
+                result = acquire(args.config,args.destino)
+                if args.formato == 'json':
+                    sys.stdout.write(json_text(result))
+                else:
+                    sys.stdout.write('ReplayQuant — Aquisição pública\nEstado: '+result['status']+'\n'+
+                                     '\n'.join(f"{r['name']}: {r['size']} bytes · SHA-256 {r['sha256']}" for r in result['objects'])+'\n')
+                return result['exit_code']
+            result = (validate_snapshot(args.manifesto) if args.command=='validar-dados'
+                      else import_path(args.config,args.repositorio,args.saida))
+            sys.stdout.write(render_quality(result,args.formato))
+            return result['exit_code']
+        except (ValidationError,OSError,UnicodeError,sqlite3.Error) as exc:
+            print(f'Erro: {exc}',file=sys.stderr)
+            return 1
     if args.command == 'carteira':
         from .shared_config import load_shared
         from .shared_engine import replay_shared
@@ -91,7 +124,8 @@ def main(argv=None):
             demo_data = 'data/fixtures/sprint07-candles.json' if sma_demo else 'data/fixtures/sprint09-candles.json'
         inputs = load_inputs(demo_data if demonstration else args.dados,
                              demo_config if demonstration else args.config,
-                             catalog_path=None if demonstration else args.catalogo)
+                             catalog_path=None if demonstration else args.catalogo,
+                             dataset_manifest=None if demonstration else args.dataset_manifest)
         enabled = args.analise or isinstance(inputs.config, RiskConfig)
         if args.formato == 'markdown' and not enabled:
             parser.error('--formato markdown exige --analise ou configuração de risco')

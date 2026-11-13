@@ -13,7 +13,7 @@ def instrument(source, symbol, interval):
 
 def market_instrument(source, symbol, interval):
     import re
-    if (type(source) is not str or source != 'FICTICIA' or type(symbol) is not str
+    if (type(source) is not str or source not in ('FICTICIA','BINANCE_SPOT') or type(symbol) is not str
             or re.fullmatch(r'[A-Z0-9]{2,30}', symbol) is None or type(interval) is not str or interval != '1m'):
         raise ValidationError('Identidade de mercado inválida')
 

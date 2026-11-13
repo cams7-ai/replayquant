@@ -16,6 +16,9 @@ def instrument_report(summary, session):
                    coverage=describe(config, source, accepted),
                    units=dict(cash='USDT', asset_quantity=config.base_asset,
                               price=f'USDT/{config.base_asset}', fee='USDT'))
+    if config.provenance is not None:
+        from .provenance import enrich_historical
+        enrich_historical(summary, (config.provenance,))
     summary['coverage']['duplicates'] = sum(r.get('reason') == 'DUPLICATE_CANDLE' for r in session._input_diagnostics)
     summary['coverage']['gaps'] = [session.diagnostic] if (session.diagnostic or {}).get('reason') == 'DATA_GAP' else []
 

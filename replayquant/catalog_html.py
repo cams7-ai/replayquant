@@ -11,7 +11,7 @@ def metadata_rows(value):
     instrument = value['instrument']
     coverage = value['coverage']
     filters = instrument['instrument_filters']
-    return [
+    rows = [
         ('Origem', value['source']), ('Par', value['symbol']),
         ('Moeda base', value['base_asset']), ('Moeda de cotação', value['quote_asset']),
         ('Intervalo', value['interval']), ('Hipótese das regras', instrument['rules_basis']),
@@ -28,6 +28,13 @@ def metadata_rows(value):
         ('Duplicatas / lacunas', f"{coverage['duplicates']} / {len(coverage['gaps'])}"),
         ('Último fechamento aceito UTC', coverage['observed_until'] or 'nenhum'),
     ]
+
+    for p in value.get('provenance', []):
+        rows.extend([('Origem histórica', p['source']),('dataset_version',p['dataset_version']),
+                     ('ingestion_id',p['ingestion_id']),('Qualidade',p['quality_status']),
+                     ('Universo',p['universe']['basis']),('Restrição',p['universe']['restriction']),
+                     ('Disponibilidade da informação',p['policy'])])
+    return rows
 
 
 def catalog_markdown(value):

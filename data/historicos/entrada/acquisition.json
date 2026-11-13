@@ -1,0 +1,54 @@
+{
+  "exit_code": 0,
+  "objects": [
+    {
+      "checksum_sha256": "0f1b9141912f039b490830cf8b822e6d6cacb4a646f5839f85e33db1f60cb578",
+      "checksum_url": "https://data.binance.vision/data/spot/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2024-12-31.zip.CHECKSUM",
+      "fetched_at": "2026-11-13T15:56:09.928040+00:00",
+      "final_url": "https://data.binance.vision/data/spot/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2024-12-31.zip",
+      "name": "BTCUSDT-1m-2024-12-31.zip",
+      "sha256": "756551b6eb4f0a0173af3333762e6c95d08c7503bb3b7b79807e10a02575a4af",
+      "size": 71638,
+      "status": "VERIFIED",
+      "url": "https://data.binance.vision/data/spot/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2024-12-31.zip"
+    },
+    {
+      "checksum_sha256": "8706608b03243b73f349e5a4af974a0b4e816f64a957aef7cf4ea8768888607b",
+      "checksum_url": "https://data.binance.vision/data/spot/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2025-01-01.zip.CHECKSUM",
+      "fetched_at": "2026-11-13T15:56:11.535796+00:00",
+      "final_url": "https://data.binance.vision/data/spot/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2025-01-01.zip",
+      "name": "BTCUSDT-1m-2025-01-01.zip",
+      "sha256": "10a12909f1b0e3fcc6b7f502e5ea9be5d1ba3455dd8ab16cc61c8650640ba7c0",
+      "size": 69062,
+      "status": "VERIFIED",
+      "url": "https://data.binance.vision/data/spot/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2025-01-01.zip"
+    },
+    {
+      "checksum_sha256": "2f1b68c0ddcf258e3c2f8b8aee54bf674cf68f9a1a1c84a849ab3f1a62131178",
+      "checksum_url": "https://data.binance.vision/data/spot/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2024-12-31.zip.CHECKSUM",
+      "fetched_at": "2026-11-13T15:56:12.735159+00:00",
+      "final_url": "https://data.binance.vision/data/spot/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2024-12-31.zip",
+      "name": "ETHUSDT-1m-2024-12-31.zip",
+      "sha256": "70ae988d84bb7ad0692dccbb126dec26b8a388fbc8cdd11bda06cbfe40837cf6",
+      "size": 67432,
+      "status": "VERIFIED",
+      "url": "https://data.binance.vision/data/spot/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2024-12-31.zip"
+    },
+    {
+      "checksum_sha256": "d43b6d3af9b6f20b173c60777f4b0d8628122b96063dcde0691e404e8b87b24f",
+      "checksum_url": "https://data.binance.vision/data/spot/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2025-01-01.zip.CHECKSUM",
+      "fetched_at": "2026-11-13T15:56:13.814301+00:00",
+      "final_url": "https://data.binance.vision/data/spot/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2025-01-01.zip",
+      "name": "ETHUSDT-1m-2025-01-01.zip",
+      "sha256": "26cc71cf7a2bd0232cf0e8aaaf529fc6674ba20059028023eb346232ee4dbf91",
+      "size": 66406,
+      "status": "VERIFIED",
+      "url": "https://data.binance.vision/data/spot/daily/klines/ETHUSDT/1m/ETHUSDT-1m-2025-01-01.zip"
+    }
+  ],
+  "reference": "https://github.com/binance/binance-public-data",
+  "schema_version": 1,
+  "source": "BINANCE_SPOT",
+  "status": "COMPLETED",
+  "terms": "https://github.com/binance/binance-public-data/blob/master/TERMS_AND_CONDITIONS.md"
+}

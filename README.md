@@ -978,3 +978,59 @@ O ledger separa `PHYSICAL` e `ATTRIBUTION`: somar ambas como caixa físico dupli
 O HTML contém candles por ativo, fills/linhas vinculados por lote, indicadores por binding, curva global e parcelas por titular, tabelas e limitações. Gráficos SVG são locais, funcionam sem JavaScript e na impressão; valores em ponto flutuante são usados somente na geometria, enquanto tabelas/artefatos conservam finanças exatas. O eixo das curvas representa a sequência de observações, inclusive pontos distintos no mesmo UTC. `HOLD_USDT` e `BUY_HOLD_BASKET` usam capital independente e o mesmo horizonte aceito. No canônico, a cesta conserva 0.001 USDT e 0.00999 BTC, com patrimônio bruto final de 799.201 USDT.
 
 Dados fictícios, liquidez ilimitada, ausência de latência positiva, `STOP_FIRST` e `BAR_CLOSE_RESOLUTION` são hipóteses declaradas. O risco planejado não garante teto de perda em gaps. A exposição simultânea a BTC/ETH não demonstra hedge, correlação ou rentabilidade. Consulte [especificação](docs/sprint12.md), [validação executada](docs/sprint12-validacao.md) e [glossário](docs/sprint12-glossario.md).
+
+## Sprint 13 — Dados históricos reais e reprodução offline
+
+`obter-dados` faz a aquisição pública explícita; `importar-dados` normaliza arquivos locais e publica versões em SQLite; `validar-dados` verifica o snapshot exportado. O motor financeiro continua compartilhado com as sprints anteriores. A origem real é `BINANCE_SPOT`, com catálogo e manifesto obrigatórios; os exemplos sintéticos continuam `FICTICIA`.
+
+Os quatro ZIPs oficiais e seus checksums estão em `data/historicos/entrada`, acompanhados de [atribuição, termos e hashes](data/historicos/NOTICE.md). A demonstração abaixo funciona offline, sem novo download:
+
+```bash
+source .venv/bin/activate
+sprint13_dir=$(mktemp -d)
+python -m replayquant importar-dados --config experiments/sprint13-importacao-real.json --repositorio "$sprint13_dir/store" --saida "$sprint13_dir/real" --formato json > "$sprint13_dir/import-real.json"
+python -m replayquant validar-dados --manifesto "$sprint13_dir/real/manifest.json" --formato html > "$sprint13_dir/qualidade.html"
+python -m replayquant executar --dados "$sprint13_dir/real/BTCUSDT.json" --config "$sprint13_dir/real/individual.json" --catalogo "$sprint13_dir/real/catalog.json" --dataset-manifest "$sprint13_dir/real/manifest.json" --saida "$sprint13_dir/individual" --formato html > "$sprint13_dir/individual.html"
+python -m replayquant comparar --config "$sprint13_dir/real/matriz.json" --saida "$sprint13_dir/matriz" --formato html > "$sprint13_dir/matriz.html"
+python -m replayquant carteira --config "$sprint13_dir/real/carteira.json" --saida "$sprint13_dir/carteira" --formato html > "$sprint13_dir/carteira.html"
+```
+
+Os cinco comandos retornaram 0 na amostra fixada. Cada código precisa ser capturado individualmente. Também existem os formatos `texto`, `json` e `markdown`; `--analise` continua redundante em schema 7. Os diretórios de saída são exclusivos. As receitas exportadas resolvem seus caminhos em relação ao próprio arquivo e funcionam em outra cwd; o snapshot executa sem SQLite acessível.
+
+Para obter novamente os arquivos da fonte, a etapa de rede é explícita e separada:
+
+```bash
+python -m replayquant obter-dados --config experiments/sprint13-aquisicao-real.json --destino data/historicos/entrada --formato json
+```
+
+O comando verifica checksum SHA-256, CRC, nomes/membros e limites dos ZIPs antes da publicação; não sobrescreve conteúdo divergente. Uma revisão externa exige outro destino e importação explicitamente revisada. Arquivos locais equivalentes são suficientes para o restante do fluxo. O recibo de aquisição contém relógio de parede e fica fora da identidade lógica do dataset.
+
+A receita usa arquivos de 31/12/2024 e 01/01/2025, com ms/us declarados por arquivo. O adaptador verifica todas as **5.760 linhas** e seleciona **8 candles por par**, de 31/12/2024 23:56 a 01/01/2025 00:04 UTC. O fechamento inclusivo da fonte soma uma unidade para chegar ao fechamento exclusivo do motor. `as_of` é fixo; candles ainda incompletos não entram na estratégia. Volume do Candle é base; volume cotação/trades/taker ficam em metadados rastreáveis.
+
+| Carteira compartilhada | Caixa USDT | Patrimônio bruto USDT | Taxas USDT | Fills / lotes encerrados |
+| --- | --- | --- | --- | --- |
+| Fixture sintética de formato | 989.95 | 989.95 | 0.05 | 4 / 2 |
+| Arquivos reais fixados | 969.9656372416 | 999.9789082016 | 0.0300043584 | 2 / 0 |
+
+A execução real conserva **0.000212 BTC e 0.00304 ETH** em KEEP_OPEN. Seu retorno marcado é **−0.002109179840%**; liquidação hipotética é **999.94889493064 USDT**, sem venda nem taxa efetiva adicional. A exposição conjunta dura 120 segundos. São oito minutos com filtros, taxa 0.001, slippage zero e liquidez ilimitada assumidos; o resultado não é evidência de rentabilidade.
+
+O universo real é **OBSERVED_COVERAGE_ONLY / SURVIVORSHIP_RESTRICTION**. As bordas do catálogo limitam o cenário, sem provar listagem/deslistagem histórica. Os filtros da demonstração são `SYNTHETIC_ASSUMPTION`, não regras históricas da Binance. `FINAL_ARCHIVE_ASSUMED_AVAILABLE_AT_CLOSE` declara que não há reconstrução das revisões conhecidas em tempo real.
+
+A exportação contém dez arquivos: `manifest.json`, `quality.json`, `quality.md`, `BTCUSDT.json`, `ETHUSDT.json`, `catalog.json`, `universe.json`, `individual.json`, `matriz.json` e `carteira.json`. O manifesto fixa hashes, dataset_version e ingestion_id; as execuções subsequentes conservam seus formatos de artefatos anteriores, incluindo quinze arquivos de carteira. O relatório de qualidade distingue integridade, cobertura e limitações metodológicas de desempenho financeiro.
+
+SQLite guarda metadados, versões, candles e relações arquivo/membro/linha. Decimais usam TEXT canônico e cálculo em Python, sem REAL ou ordenação financeira por texto. Reimportação é idempotente; duplicata numericamente equivalente é inócua. Conflito rejeita o lote, e correção exige `supersedes`/`revision_reason`, conservando o pai. Erros anteriores ao commit não aceitam prefixo de arquivos. Uma falha posterior de exportação informa `EXPORT_FAILED`, a versão já aceita e INCOMPLETE, permitindo reexportação em outro diretório.
+
+Códigos dos comandos de ingestão/qualidade: 0 sem issues operacionais; 2 por lacunas, incompletos ou falta de observações; 1 por entrada/integridade/conflito/falha técnica. Avisos metodológicos sobre universo e custos são sempre exibidos e, isoladamente, não reprovam a integridade do arquivo. Replays conservam seus códigos anteriores, incluindo 1 na interrupção global por lacuna.
+
+Para conferir os casos analíticos locais:
+
+```bash
+python -m replayquant importar-dados --config experiments/sprint13-importacao-fixture.json --repositorio "$sprint13_dir/store-fixture" --saida "$sprint13_dir/fixture" --formato json
+python -m replayquant carteira --config "$sprint13_dir/fixture/carteira.json" --saida "$sprint13_dir/run-fixture" --formato json
+python -m replayquant importar-dados --config experiments/sprint13-importacao-retirada.json --repositorio "$sprint13_dir/store-retirada" --saida "$sprint13_dir/retirada" --formato json
+python -m unittest discover -s tests -v
+```
+
+A fixture é **SYNTHETIC_FORMAT_FIXTURE/FICTICIA**, com checksums locais e resultado manual conhecido. A variante de retirada aceita oito candles BTC e quatro ETH, excluindo períodos fora da disponibilidade sem criar lacuna; testes controlados também conservam um lote ETH aberto com proteção indisponível. Essas fixtures não representam deslistagem real.
+
+Veja [especificação](docs/sprint13.md), [validação executada](docs/sprint13-validacao.md), [glossário](docs/sprint13-glossario.md) e [decisão de ingestão/persistência](docs/decisoes/sprint13-ingestao.md).

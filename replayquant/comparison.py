@@ -65,16 +65,23 @@ def load_matrix(path):
     children = []
     common = {k:value[k] for k in ('source', 'interval', 'window', 'initial_cash', 'fee_rate', 'slippage_rate', 'risk')}
     for row in value['datasets']:
-        fields(row, {'symbol', 'path'}, 'dataset')
+        fields(row, {'symbol', 'path'} | ({'manifest'} if value['source']=='BINANCE_SPOT' else set()), 'dataset')
         symbol = row['symbol']
         if type(symbol) is not str or symbol in symbols or type(row['path']) is not str or not row['path']:
             raise ValidationError('Dataset inválido/duplicado')
         symbols.add(symbol)
         raw_data = (path.parent / row['path']).read_bytes()
-        candles, diagnostics = parse_candles(raw_data, contiguous=False, catalog=catalog)
+        provenance = None
+        if value['source'] == 'BINANCE_SPOT':
+            from .provenance import load_provenance
+            if type(row['manifest']) is not str or not row['manifest']:
+                raise ValidationError('manifest exige caminho')
+            provenance = load_provenance(path.parent/row['manifest'])
+            provenance.verify(symbol, raw_data, catalog)
+        candles, diagnostics = parse_candles(raw_data, contiguous=False, catalog=catalog, allow_empty=provenance is not None)
         for name, strategy in sorted(strategies.items()):
             config = parse_config(canonical(dict(schema_version=6, mode='STRATEGY', symbol=symbol,
-                                                 strategy=strategy, **common)), catalog=catalog)
+                                                 strategy=strategy, **common)), catalog=catalog, provenance=provenance)
             matching(candles, config)
             inputs = Inputs(candles, config, diagnostics, sha256(raw_data).hexdigest(), sha256(canonical(config)).hexdigest())
             children.append((name, inputs))
@@ -131,6 +138,8 @@ def compare(inputs):
                          warmup_candles=config.strategy.warmup_candles,
                          rejections=[dict(order_id=o.request.id, reason=o.reason) for o in session.orders if o.reason],
                          artifact_path=f'runs/{config.symbol}/{strategy_id}'))
+        if config.provenance is not None:
+            rows[-1]['provenance'] = summary['provenance']
         runs.append((strategy_id, metadata, session, summary))
     rank(rows)
     identity = dict(policy='SPRINT11_INDEPENDENT_MATRIX_V1',
@@ -189,7 +198,7 @@ def comparison_html(summary):
         parts.extend([f'<section class="panel" id="run-{index}"><h2>'+escape(row['symbol']+' / '+row['strategy_id'])+'</h2>',
                       '<p class="identity">'+escape(row['run_id'])+'</p>',
                       table(('Parâmetro', 'Valor'), ((key, canonical(row[key]).decode()) for key in
-                            ('strategy', 'risk', 'instrument_filters', 'window', 'coverage', 'rejections', 'metrics')),
+                            ('strategy', 'risk', 'instrument_filters', 'window', 'coverage', 'rejections', 'metrics') + (('provenance',) if row.get('provenance') else ())),
                             'Condições e resultados da execução'), '</section>'])
     return ''.join(parts)+'</main></body></html>'
 

@@ -178,7 +178,10 @@ def analysis_files(summary):
 def analysis_formulas(summary):
     if summary['schema_version'] == 6:
         base = summary['base_asset']
-        return [line.replace('piso no quantum 0.000000000001 BTC', 'piso no step fictício configurado').replace('BUY_HOLD_BTC', 'BUY_HOLD_ASSET').replace('BTC', base) for line in FORMULAS]
+        lines = [line.replace('piso no quantum 0.000000000001 BTC', 'piso no step fictício configurado').replace('BUY_HOLD_BTC', 'BUY_HOLD_ASSET').replace('BTC', base) for line in FORMULAS]
+        if summary.get('source') == 'BINANCE_SPOT':
+            lines = [line.replace('A amostra é fictícia e curta', 'A amostra histórica é curta') for line in lines]
+        return lines
     if summary['schema_version'] in (4, 5, 6):
         return [line.replace('piso no quantum 0.000000000001 BTC', 'piso no step fictício configurado') for line in FORMULAS]
     return FORMULAS

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "mode": "PUBLIC_ARCHIVE_DOWNLOAD",
+  "provider": "BINANCE_PUBLIC_DATA",
+  "market": "SPOT",
+  "source": "BINANCE_SPOT",
+  "interval": "1m",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "dates": [
+    "2024-12-31",
+    "2025-01-01"
+  ],
+  "base_url": "https://data.binance.vision/data/spot/daily/klines"
+}

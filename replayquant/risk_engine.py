@@ -79,11 +79,15 @@ class RiskSession(Session):
     def _emit(self, at, event_type, **payload):
         super()._emit(at, event_type, **payload)
         self._events[-1]['schema_version'] = self.config.schema_version
+        if self.config.source == 'BINANCE_SPOT':
+            self._events[-1].update(source=self.config.source, symbol=self.config.symbol, interval=self.config.interval)
 
     def _validate_market_event(self, event):
         if (event.source, event.symbol, event.interval) != (self.config.source, self.config.symbol, self.config.interval):
             raise ValidationError('Evento de instrumento divergente')
         if self.config.schema_version == 6:
+            if self.config.provenance is not None:
+                self.config.provenance.verify_event(event)
             from .models import Opening
             opening = event.at if isinstance(event, Opening) else event.open_time
             closing = opening + timedelta(minutes=1)
@@ -413,7 +417,8 @@ class RiskSession(Session):
 
 
 def replay_risk(candles, config, run_id='api', diagnostics=()):
-    validated, duplicates = validate_series(candles, contiguous=config.mode == 'MANUAL')
+    validated, duplicates = (((), ()) if type(candles) in (list,tuple) and not candles and config.schema_version == 6
+                             else validate_series(candles, contiguous=config.mode == 'MANUAL'))
     if config.mode == 'MANUAL':
         closes = {c.close_time for c in validated}
         if any(r.at_close not in closes for r in config.orders):

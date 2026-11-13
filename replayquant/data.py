@@ -41,7 +41,7 @@ def validate_schedule(candles, config):
         raise ValidationError("at_close deve referenciar fechamento existente")
 
 
-def parse_candles(raw, *, contiguous=True, catalog=None):
+def parse_candles(raw, *, contiguous=True, catalog=None, allow_empty=False):
     envelope = strict_json(raw)
     fields(envelope, {"schema_version", "candles"}, "dados")
     version(envelope["schema_version"])
@@ -65,10 +65,12 @@ def parse_candles(raw, *, contiguous=True, catalog=None):
                 raise ValidationError('Esperado Catalog')
             catalog.resolve(candle.source, candle.symbol, candle.interval)
         result.append(candle)
+    if not result and allow_empty and catalog is not None:
+        return (), ()
     return validate_series(result, contiguous=contiguous)
 
 
-def parse_config(raw, catalog=None):
+def parse_config(raw, catalog=None, provenance=None):
     envelope = strict_json(raw)
     if type(envelope) is not dict or type(envelope.get("schema_version")) is not int:
         raise ValidationError("schema_version exige inteiro 1, 2, 4 ou 5")
@@ -88,7 +90,9 @@ def parse_config(raw, catalog=None):
         values['risk'] = RiskParameters(**{k: decimal_text(v, k) for k, v in values['risk'].items()})
         values['strategy'] = parse_strategy(values['strategy'])
         values['window'] = parse_window(values['window'])
-        return CatalogConfig(**values, catalog=catalog, instrument_filters=definition.instrument_filters)
+        return CatalogConfig(**values, catalog=catalog, instrument_filters=definition.instrument_filters, provenance=provenance)
+    if provenance is not None:
+        raise ValidationError('Proveniência exige schema 6')
     if catalog is not None:
         raise ValidationError('Catálogo exige configuração schema 6')
     if envelope["schema_version"] in (4, 5):
@@ -127,7 +131,7 @@ class Inputs:
     config_hash: str
 
 
-def load_inputs(data_path, config_path, catalog_path=None, *, catalog=None):
+def load_inputs(data_path, config_path, catalog_path=None, *, catalog=None, dataset_manifest=None, provenance=None):
     # Os mesmos bytes alimentam parser e hash, evitando releitura inconsistente.
     data_raw = Path(data_path).read_bytes()
     config_raw = Path(config_path).read_bytes()
@@ -136,8 +140,15 @@ def load_inputs(data_path, config_path, catalog_path=None, *, catalog=None):
         if catalog is not None:
             raise ValidationError('Forneça um único catálogo')
         catalog = load_catalog(catalog_path)
-    config = parse_config(config_raw, catalog=catalog)
-    candles, diagnostics = parse_candles(data_raw, contiguous=not (isinstance(config, SMAConfig) or (isinstance(config, RiskConfig) and config.mode != 'MANUAL')), catalog=catalog)
+    if dataset_manifest is not None:
+        from .provenance import load_provenance
+        if provenance is not None:
+            raise ValidationError('Forneça uma única proveniência')
+        provenance = load_provenance(dataset_manifest)
+    config = parse_config(config_raw, catalog=catalog, provenance=provenance)
+    if provenance is not None:
+        provenance.verify(config.symbol, data_raw, catalog)
+    candles, diagnostics = parse_candles(data_raw, contiguous=not (isinstance(config, SMAConfig) or (isinstance(config, RiskConfig) and config.mode != 'MANUAL')), catalog=catalog, allow_empty=provenance is not None)
     from .coverage import matching
     matching(candles, config)
     if isinstance(config, RiskConfig) and config.mode == 'MANUAL':
